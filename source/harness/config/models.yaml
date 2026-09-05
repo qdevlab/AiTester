@@ -48,6 +48,16 @@ slots:
       - "anthropic/claude-sonnet-5"
     params: {temperature: 0.0, seed: 7, max_tokens: 400, reasoning: {enabled: false}}
 
+  # Ядро-отчётник: собирает report__*.json всех модулей -> человекочитаемый отчёт по уязвимостям.
+  # Сильная модель (пишет прозу/сводит), НЕ судит (вердикт — детерминированный оракул). Длинный вывод.
+  reporter:
+    default: "anthropic/claude-sonnet-5"
+    candidates:
+      - "anthropic/claude-sonnet-5"
+      - "openai/gpt-5-mini"
+      - "openai/gpt-4o"
+    params: {temperature: 0.3, max_tokens: 4000, reasoning: {enabled: false}}
+
 # Заметка честности: температуру цели наружу не выставить -> любое поведение цели считаем
 # распределением, гоняем N попыток. Модель, не сумевшая вызвать инструмент, = провал
 # ВОЗМОЖНОСТЕЙ, не устойчивость к атаке (логировать отдельно, не засчитывать "безопасно").

@@ -404,6 +404,22 @@ def cmd_mem(cfg, marker=None):
     return 0
 
 
+def cmd_report(cfg, model=None):
+    """Ядро-отчёт по уязвимостям: свод report__*.json всех модулей сильной LLM (fallback — детерм.).
+    Атрибуция по модулям + дедуп; форвард-совместим с модулями-прокладками (narrative)."""
+    from ..report import synthesize
+    run = Run("report-" + _stamp(), cfg)
+    md, src, used = synthesize.build(run, cfg, model=model)
+    run.write_text("VULN_REPORT.md", md)
+    top = os.path.join(OUTPUT_DIR, "VULN_REPORT.md")
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    with open(top, "w", encoding="utf-8") as f:
+        f.write(md)
+    print(f"Отчёт по уязвимостям ({'LLM' if used else 'fallback'}) -> {top}")
+    print(f"  источники ({len(src)}): {', '.join(os.path.basename(s) for s in src)}")
+    return 0
+
+
 def _proof_note(run):
     p = run.path("proof.md")
     if os.path.exists(p):
@@ -608,7 +624,7 @@ def main(argv=None):
         return cmd_vectors(cfg, selected, overrides)
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["smoke", "bac", "bac-proof", "poison", "poison-proof",
-                                    "llm-repro", "models", "chain", "repro", "mem", "all"])
+                                    "llm-repro", "models", "chain", "repro", "mem", "all", "report"])
     ap.add_argument("--attempts", type=int, default=5)
     ap.add_argument("--no-llm", action="store_true")
     ap.add_argument("--marker", default=None, help="mem: искать эту метку по ярусам памяти")
@@ -645,6 +661,8 @@ def main(argv=None):
     if args.cmd == "mem":
         cmd_mem(cfg, marker=args.marker)
         return 0
+    if args.cmd == "report":
+        return cmd_report(cfg)
     if args.cmd == "all":
         cmd_bac(cfg, args.attempts)          # -> output/PROOF.md
         cmd_poison(cfg, args.attempts, use_llm=not args.no_llm)  # -> output/POISON_PROOF.md
