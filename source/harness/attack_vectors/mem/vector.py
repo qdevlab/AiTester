@@ -31,7 +31,8 @@ class MemVector(AttackVector):
         return mp.run_mvp(ctx.run, ctx.cfg,
                           attempts=int(p.get("attempts", 5)),
                           use_llm=bool(p.get("use_llm", True)),
-                          registers=tuple(p.get("registers", ("benign", "compliance", "universal"))))
+                          registers=tuple(p.get("registers", ("benign", "compliance", "universal"))),
+                          generator=str(p.get("generator", "native")))
 
     def findings(self, summary, ctx):
         sw = summary["sweep"]
