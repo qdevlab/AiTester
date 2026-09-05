@@ -519,9 +519,10 @@ def _error_finding(name, phase, exc, tb=None):
         taxonomy={"owasp_asi": "N/A (harness error)", "owasp_llm": "N/A (harness error)"})
 
 
-def _run_one_vector(cfg, run, name, cls, overrides):
-    """Полный жизненный цикл ОДНОГО вектора ПОД ЗАЩИТОЙ. Никогда не бросает — падение вектора не
-    роняет оркестратор: пишем error-находку + отчёт и идём дальше. -> list[finding]."""
+def _run_one_vector(cfg, stamp, name, cls, overrides):
+    """Полный жизненный цикл ОДНОГО вектора ПОД ЗАЩИТОЙ, в СВОЕЙ подпапке runs/<stamp>/<name>/
+    (свои attempts/calls/report/summary/proof). Никогда не бросает. -> (list[finding], subrun)."""
+    subrun = Run(os.path.join(stamp, name), cfg)
     try:
         params = merge_params(cls, overrides.get(name, {}))
     except Exception as e:
@@ -531,16 +532,16 @@ def _run_one_vector(cfg, run, name, cls, overrides):
         vec = cls(params=params)
     except Exception as e:
         print(f"  [{name}] init упал: {type(e).__name__}: {e}")
-        return [_error_finding(name, "init", e, traceback.format_exc())]
+        return [_error_finding(name, "init", e, traceback.format_exc())], subrun
 
-    ctx = VectorContext(run=run, cfg=cfg, params=params)
+    ctx = VectorContext(run=subrun, cfg=cfg, params=params)
     try:
         if not vec.applicable(ctx):
             print(f"  [{name}] неприменим к цели (applicable=False) — пропуск")
-            return []
+            return [], subrun
     except Exception as e:
         print(f"  [{name}] applicable упал: {type(e).__name__}: {e}")
-        return [_error_finding(name, "applicable", e, traceback.format_exc())]
+        return [_error_finding(name, "applicable", e, traceback.format_exc())], subrun
 
     print(f"  [{name}] запуск (mutates_state={getattr(vec, 'mutates_state', False)}) params={params}")
     summary, fs = None, []
@@ -563,7 +564,7 @@ def _run_one_vector(cfg, run, name, cls, overrides):
 
     if summary is not None:
         try:
-            run.write_json(f"{name}_summary.json", summary)
+            subrun.write_json("summary.json", summary)
         except Exception as e:
             print(f"  [{name}] summary не записался: {type(e).__name__}: {e}")
         try:
@@ -573,15 +574,15 @@ def _run_one_vector(cfg, run, name, cls, overrides):
             fs = [_error_finding(name, "findings", e, traceback.format_exc())]
 
     try:
-        jp, mp = report_std.write(run, vec, summary or {"vector": name, "error": True}, fs, cfg)
-        print(f"    -> {os.path.basename(jp)}, {os.path.basename(mp)}  (находок: {len(fs)})")
+        jp, _mp = report_std.write(subrun, vec, summary or {"vector": name, "error": True}, fs, cfg)
+        print(f"    -> {name}/{os.path.basename(jp)}  (находок: {len(fs)})")
     except Exception as e:
-        print(f"  [{name}] отчёт report__{name} не записался: {type(e).__name__}: {e}")
+        print(f"  [{name}] отчёт не записался: {type(e).__name__}: {e}")
     try:
-        _publish_top(name, run)
+        _publish_top(name, subrun)
     except Exception as e:
         print(f"  [{name}] публикация PoC не удалась: {type(e).__name__}: {e}")
-    return fs
+    return fs, subrun
 
 
 def cmd_vectors(cfg, selected, overrides):
@@ -604,20 +605,31 @@ def cmd_vectors(cfg, selected, overrides):
             print(f"неизвестные векторы: {', '.join(unknown)} ; доступны: {', '.join(sorted(reg))}")
             if not names:
                 return 1
-    run = Run("run-" + _stamp(), cfg)
-    print("== VECTORS ==", "run:", run.run_id, "|", ", ".join(names))
-    all_findings = []
+    stamp = _stamp()
+    parent = Run(stamp, cfg)                        # runs/<date_time>/ — общий прогон
+    print("== VECTORS ==", "прогон:", parent.run_id, "|", ", ".join(names))
+    all_findings, subruns = [], []
     for name in names:
-        all_findings += _run_one_vector(cfg, run, name, reg[name], overrides)   # не бросает
+        fs, sr = _run_one_vector(cfg, stamp, name, reg[name], overrides)   # -> runs/<stamp>/<name>/
+        all_findings += fs
+        subruns.append(sr)
+    # attempts подпапок сливаем в родителя -> coverage по всему прогону
     try:
-        doc = F.write(run, all_findings, _meta(cfg))
-        print(f"findings всего: {doc['count']} -> {run.path('findings.json')}")
+        for sr in subruns:
+            for rec in sr.read_attempts():
+                parent.attempt(rec)
+    except Exception as e:
+        print(f"merge attempts не удался: {type(e).__name__}: {e}")
+    try:
+        doc = F.write(parent, all_findings, _meta(cfg))
+        print(f"findings всего: {doc['count']} -> {parent.path('findings.json')}")
     except Exception as e:
         print(f"свод findings не записался: {type(e).__name__}: {e}")
     try:
-        COV.write(run)
+        COV.write(parent)
     except Exception as e:
         print(f"coverage не записался: {type(e).__name__}: {e}")
+    print(f"прогон: {parent.dir}/ (модули в подпапках)")
     return 0
 
 

@@ -44,9 +44,12 @@ _PROMPT = """Ты — старший специалист по безопасн�
 
 
 def gather_latest(exclude=("stub", "crashtest", "pinj")):
-    """Свежайший report__<vector>.json по каждому вектору. -> {vector: (path, dict)}."""
+    """Свежайший report__<vector>.json по каждому вектору. -> {vector: (path, dict)}.
+    Ищет и в подпапках модулей runs/<stamp>/<module>/, и в легаси-плоских runs/<stamp>/."""
+    paths = (glob.glob(os.path.join(OUTPUT_DIR, "runs", "*", "*", "report__*.json"))   # новая: <stamp>/<module>/
+             + glob.glob(os.path.join(OUTPUT_DIR, "runs", "*", "report__*.json")))     # легаси: плоско
     latest = {}
-    for p in sorted(glob.glob(os.path.join(OUTPUT_DIR, "runs", "*", "report__*.json"))):
+    for p in sorted(paths):
         try:
             d = json.load(open(p, encoding="utf-8"))
         except (json.JSONDecodeError, OSError):

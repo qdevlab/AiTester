@@ -308,10 +308,13 @@ params:
 
 ## 11. Отчёты — пишутся сами
 
-Драйвер после `findings()` сам создаёт в папке прогона:
+Структура прогона: `output/runs/<date_time>/` (общий прогон), внутри — **подпапка на каждый модуль**
+`output/runs/<date_time>/<name>/` со своими файлами:
 - `report__<name>.json` — строгая схема (для сборки ядром-LLM);
-- `report__<name>.md` — человекочитаемо (единые заголовки).
-Плюс общие `findings.json/md`, `coverage.*`, твой `<name>_summary.json`, `attempts.jsonl`.
+- `report__<name>.md` — человекочитаемо (единые заголовки);
+- `summary.json`, `attempts.jsonl`, `calls.jsonl`, `proof.md` (если есть) — тоже в подпапке модуля.
+Агрегаты по всему прогону — в корне `runs/<date_time>/`: `findings.json/md`, `coverage.*`,
+слитый `attempts.jsonl`.
 Ты НЕ пишешь эти файлы. Хочешь человекочитаемый «что написал юзер» — реализуй `proof(run_dir)`,
 верни путь к собранному `proof.md` (реконструируй из `attempts.jsonl`); он попадёт в MD-отчёт.
 
