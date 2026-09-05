@@ -48,10 +48,12 @@ echo "OPENROUTER_API_KEY=sk-or-..." > .env               # ключ подхва
 ./.venv/bin/python run.py --list                     # реестр всех векторов + их параметры
 ./.venv/bin/python run.py a-bac                      # запустить один вектор
 ./.venv/bin/python run.py a-bac a-docinject          # несколько
-./.venv/bin/python run.py a-all                      # ВСЕ активные векторы (полный прогон)
+./.venv/bin/python run.py a-all                      # ВСЕ активные векторы (полный прогон, вкл. обёртки)
+./.venv/bin/python run.py a-all-nowrapper            # все активные БЕЗ обёрток [wrapper] (быстрое ядро)
 ./.venv/bin/python run.py a-docinject docinject--mode=stealth docinject--attempts=8   # override параметров
 ```
-- **`a-<name>`** — выбрать вектор (по имени папки); **`a-all`** — все `active=True`.
+- **`a-<name>`** — выбрать вектор (по имени папки); **`a-all`** — все `active=True` (вкл. обёртки);
+  **`a-all-nowrapper`** — все активные, но без обёрток (модули с полем `is_wrapper=True`).
 - **`<name>--<key>=<value>`** — переопределить параметр этого вектора (оркестратор срезает `<name>--`,
   модуль получает чистый `key`; неизвестный ключ → варнинг, не падение). Дефолты — в `params.yaml` вектора.
 

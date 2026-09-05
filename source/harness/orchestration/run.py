@@ -510,7 +510,12 @@ def _split_vector_args(argv):
         elif _A_SEL.match(tok):
             saw = True
             g = _A_SEL.match(tok).group(1)
-            selected.append("*" if g == "all" else g)
+            if g == "all":
+                selected.append("*")                                   # все активные (вкл. обёртки)
+            elif g in ("all-nowrapper", "all-nowrappers", "all-no-wrapper"):
+                selected.append("*-nowrapper")                         # активные без обёрток (is_wrapper=False)
+            else:
+                selected.append(g)
         elif _OVR.match(tok):
             m = _OVR.match(tok)
             k, sep, v = m.group(2).partition("=")
@@ -530,14 +535,16 @@ def cmd_list(cfg):
         cls = reg[name]
         st = "state-mutating" if getattr(cls, "mutates_state", False) else "read-only"
         act = "" if getattr(cls, "active", True) else "  (не в a-all)"
-        print(f"\n  a-{name}  — {getattr(cls, 'title', '') or name}  [{st}]{act}")
+        wr = "  [wrapper]" if getattr(cls, "is_wrapper", False) else ""
+        print(f"\n  a-{name}  — {getattr(cls, 'title', '') or name}  [{st}]{wr}{act}")
         tx = getattr(cls, "taxonomy", {}) or {}
         if tx.get("owasp_asi") or tx.get("owasp_llm"):
             print(f"     таксономия: ASI {tx.get('owasp_asi', '-')} · LLM {tx.get('owasp_llm', '-')}")
         for k, spec in (getattr(cls, "_param_schema", {}) or {}).items():
             desc = spec.get("description", "")
             print(f"     {name}--{k}={spec.get('default')}   {('# ' + desc) if desc else ''}")
-    print("\nЗапуск: a-<name> [a-<name> ...] | a-all   ·   override: <name>--<key>=<value>")
+    print("\nЗапуск: a-<name> [a-<name> ...] | a-all (все) | a-all-nowrapper (без обёрток [wrapper])")
+    print("        override: <name>--<key>=<value>   ·   папка прогона: --run <имя> / --new / new / where")
     return 0
 
 
@@ -681,8 +688,11 @@ def cmd_vectors(cfg, selected, overrides, run_sel=None, new=False):
     if not reg:
         print("векторы не найдены (attack_vectors/ пуст)")
         return 1
-    if "*" in selected:
-        names = [n for n in sorted(reg) if getattr(reg[n], "active", True)]   # a-all -> только активные
+    if "*-nowrapper" in selected:                    # a-all-nowrapper -> активные БЕЗ обёрток
+        names = [n for n in sorted(reg) if getattr(reg[n], "active", True)
+                 and not getattr(reg[n], "is_wrapper", False)]
+    elif "*" in selected:
+        names = [n for n in sorted(reg) if getattr(reg[n], "active", True)]   # a-all -> все активные (вкл. обёртки)
     else:
         names = [n for n in selected if n in reg]
         unknown = [n for n in selected if n not in reg]

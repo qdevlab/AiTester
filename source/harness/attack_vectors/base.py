@@ -74,6 +74,8 @@ class AttackVector:
     name: str = ""                 # == имя папки; discovery проставит, если пусто
     title: str = ""                # человекочитаемое имя вектора
     active: bool = True            # входит ли в a-all (False -> только явный вызов a-<name>)
+    is_wrapper: bool = False       # обёртка над внешней тулой/бинарём (ортогонально active):
+                                   #   a-all -> все активные (вкл. обёртки); a-all-nowrapper -> без обёрток
     mutates_state: bool = False    # меняет персистентный стейт стенда -> нужны lease + reset
     taxonomy: dict = {}            # {owasp_asi, owasp_llm} для находок вектора
     requirements: tuple = ()       # Тир-A код-гейт возможностей цели (greybox/multi_turn/...)
