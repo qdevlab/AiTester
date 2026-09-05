@@ -1,44 +1,177 @@
-# AI Test CUI — харнесс тестирования безопасности агентов с памятью
+# AI Test CUI — модульный харнесс тестирования безопасности агентов с памятью
 
-Конфиг-driven инструмент: детерминированный оракул состояния — рефери, LLM только генерит/мутирует
-атаки и мягко судит. Перенос на другую цель = замена `source/harness/config/target.yaml`.
+Конфиг-driven грей-бокс инструмент для GenAI-агента с многоярусной памятью. **Дифференциатор:**
+вердикт даёт **детерминированный оракул состояния** (дифф БД/сервиса, HTTP-статусы, поведение в
+НОВОМ чате), а не текст-судья — поэтому ловит BAC и отравление памяти, которые текст-судьи метят как
+«чисто». LLM только **генерит/мутирует** атаки и **пишет сводный отчёт**, но НЕ судит.
+
+Атаки — **модульные плагины**: атака = папка `attack_vectors/<name>/`, подхватывается сама (ноль
+регистрации). Перенос на другой стенд = замена `source/harness/config/target.yaml`, код не трогаем.
+
+---
 
 ## Раскладка
 
-| папка | что |
+| путь | что |
 |---|---|
-| `source/` | код — пакет `harness/` (core, oracle, tasks, orchestration, report, recon, config, fixtures) |
-| `docs/` | документация: архитектура, контекст, находки, ТЗ, PDF, `customer_info.md` |
-| `output/` | результаты прогонов: `runs/<id>/`, сводный `PROOF.md` — не в git |
+| `source/harness/attack_vectors/` | **модули атак** (по папке на вектор) + `base.py`/`registry.py`/`_docbase.py` |
+| `source/harness/oracle/` | детерминированный оракул: `state.py` (дифф ярусов/сервиса), `fingerprints.py`, `judge_llm.py` |
+| `source/harness/core/` | `config`, `client` (агент), `attacker` (LLM-морфер), `openrouter`, `isolation`, `corpus`, `conversation` |
+| `source/harness/report/` | `report_std` (стандарт `report__<name>.{json,md}`), `synthesize` (LLM-отчёт), `pdf`, proof-билдеры |
+| `source/harness/orchestration/run.py` | оркестратор: грамматика `a-<name>`, generic-драйвер, `report` |
+| `source/harness/config/` | `target.yaml` (правда о цели), `models.yaml` (слоты), `payloads.yaml`, `hypotheses.yaml` |
+| `docs/` | `ATTACK_VECTORS.md` (как писать атаку), архитектура, методы, находки |
+| `output/` | результаты (не в git): `runs/<date>/<module>/…`, сводный `VULN_REPORT.{md,pdf}` |
 
-`.env` (ключ OpenRouter) и `source/harness/fixtures/keys.json` (кэш ключей) — вне git.
+`.env` (`OPENROUTER_API_KEY`) и `fixtures/{keys.json,success_corpus.json}` — вне git.
 
-## Запуск (из корня проекта)
+---
+
+## Установка
 
 ```bash
-./.venv/bin/python run.py smoke                 # без LLM: провижининг, чат, оракул, teardown
-./.venv/bin/python run.py bac    --attempts 5   # Таск A: BAC (3 канала)
-./.venv/bin/python run.py bac-proof [--run ID] # пересобрать BAC PROOF.md из логов прогона
-./.venv/bin/python run.py poison --attempts 6   # Таск B: отравление памяти E1..E4
-./.venv/bin/python run.py poison-proof [--run ID] # пересобрать POISON_PROOF.md (что написал юзер) из логов
-./.venv/bin/python run.py llm-repro             # ручной повтор LLM-находок (адрес из конфига) + лог
-./.venv/bin/python run.py chain  --attempts 4   # связка A×B: чужой id через память -> BAC
-./.venv/bin/python run.py models --attempts 6   # сравнение атакующих моделей (мутатор)
-./.venv/bin/python run.py all    --attempts 6   # bac + poison
-./.venv/bin/python run.py mem  [--marker X]     # проверка ярусов памяти (policy=cross-tenant)
-./.venv/bin/python run.py repro                 # готовые curl-PoC на каждую находку
+python3 -m venv .venv
+./.venv/bin/python -m pip install -r requirements.txt   # или: pymongo redis requests pyyaml weasyprint markdown
+echo "OPENROUTER_API_KEY=sk-or-..." > .env               # ключ подхватится автоматически
+```
+- **Стенд** должен быть поднят (mongo/redis/agent/data-service); адреса/порты — в `config/target.yaml`.
+- **PDF-отчёт** требует `weasyprint`+`markdown` (мягкая зависимость: нет — отчёт остаётся в `.md`).
+
+---
+
+## Как запускать
+
+Всё через корневой `run.py` (кладёт `source/` в путь и зовёт оркестратор).
+
+### Модульная грамматика (основная)
+```bash
+./.venv/bin/python run.py --list                     # реестр всех векторов + их параметры
+./.venv/bin/python run.py a-bac                      # запустить один вектор
+./.venv/bin/python run.py a-bac a-docinject          # несколько
+./.venv/bin/python run.py a-all                      # ВСЕ активные векторы (полный прогон)
+./.venv/bin/python run.py a-docinject docinject--mode=stealth docinject--attempts=8   # override параметров
+```
+- **`a-<name>`** — выбрать вектор (по имени папки); **`a-all`** — все `active=True`.
+- **`<name>--<key>=<value>`** — переопределить параметр этого вектора (оркестратор срезает `<name>--`,
+  модуль получает чистый `key`; неизвестный ключ → варнинг, не падение). Дефолты — в `params.yaml` вектора.
+
+### Полный цикл: прогон → сводный отчёт
+```bash
+./.venv/bin/python run.py a-all        # 1) все модули -> runs/<date>/<module>/report__<name>.{json,md}
+./.venv/bin/python run.py report       # 2) свод по всем модулям -> output/VULN_REPORT.{md,pdf}
+```
+Неактивные векторы (см. таблицу) в `a-all` не входят — зовите явно (`a-mem`, `a-chain`, `a-docinject_oracle`, `a-directinject_oracle`).
+
+### Прочее
+```bash
+./.venv/bin/python run.py smoke        # без LLM: провижининг + чат + оракул + teardown
+./.venv/bin/python run.py mem [--marker X]   # состояние ярусов памяти (policy=cross-tenant)
+./.venv/bin/python run.py report       # пересобрать сводный отчёт из имеющихся report__*.json
+# легаси-алиасы (плоский вывод): bac / poison / chain / bac-proof / poison-proof / llm-repro / models / repro
 ```
 
-Прогресс идёт в консоль (stderr) вживую; итог JSON — в stdout. Тихий режим: `HARNESS_QUIET=1`.
-Матрица целевых моделей (перезапуск стенда per-model):
-`cd source && ../.venv/bin/python -m harness.orchestration.target_matrix`.
+---
 
-## Где результаты
+## Что поддерживает — модули атак (20)
 
-`output/runs/<run-id>/`: `findings.md`/`findings.json` (главный артефакт), `proof.md` (единый PoC
-прогона), `attempts.jsonl`, `calls.jsonl`, `openrouter.jsonl`, `coverage.md`, `*_summary.json`.
-Каждый таск — ОДИН отчёт с секцией «что написал юзер агенту» (все сообщения + вердикт):
-`bac`/`bac-proof` → `output/PROOF.md` (+ прямой REST: юзер ничего не пишет);
-`poison`/`poison-proof` → `output/POISON_PROOF.md` (+ приземление на ярусы памяти E1..E4).
-Ручное воспроизведение LLM-находок (шаги по адресу из конфига + лог) — `output/LLM_FINDINGS_REPRO.md`
-(команда `llm-repro`).
+`active` = входит в `a-all`; иначе — только явным `a-<name>`.
+
+| вектор | тип | что проверяет | оракул | active |
+|---|---|---|---|---|
+| `bac` | BAC | межклиентский доступ: сервис (`client_by_cus`), резолв владельца, LLM→tool | served/resolved + отпечатки, пара vuln↔prot | ✓ |
+| `a05_direct_leak` | BAC | утечка чужих данных в ответе БЕЗ вызова инструмента | E4 отпечаток жертвы | ✓ |
+| `docinject` | poison | отравление памяти через **документ** «на анализ» (indirect) | E2/E3 + resurf в новом чате | ✓ |
+| `directinject` | poison | то же **прямым запросом** | E2/E3 + resurf | ✓ |
+| `c01_explicit_command` | poison | явный императив записи (remember/from now on) | E2 semantic + E3 | ✓ |
+| `c03_policy_conformant` | poison | «факт о мире» → scope=global (cross-tenant) | E2 policy + E4 у жертвы + base_rate | ✓ |
+| `b03_false_precedent` | poison | ложный «прошлый успех» в эпизодической памяти | E2 episodic/dialog + E3 | ✓ |
+| `f01_secret_landing` | poison | приземление секрета/PII (ghp_/AKIA/JWT/Luhn) в память | E2 секрет на ярусе + E3 | ✓ |
+| `f03_prompt_extract` | poison | global-marker виден при запросе системного промпта | E3-альт у жертвы | ✓ |
+| `g02_multilingual` | ось | инъекция на разных языках (обход паттерн-детекта) | E2 landing по языку | ✓ |
+| `g03_register` | ось | регистр формулировки (directive↔descriptive) vs контрзапись | E2 landing по регистру | ✓ |
+| `g05_cover_tracks` | poison | store-дифф ловит яд ПОСЛЕ удаления чата | E2 после заметания следов | ✓ |
+| `i02_sleeper` | poison | отложенная активация (инертно до триггера/finalize) | E2 парный дифф вокруг finalize | ✓ |
+| `i03_single_injection` | poison | персистентность N=1 инъекции (обход дедупа) | E2 landing + E3 позже | ✓ |
+| `l03_recon` | recon | разведка инструментов/триггеров/промпта | pre-E1 пробы | ✓ |
+| `stub` | self-test | проверка каркаса end-to-end (без стенда) | — | ✓ |
+| `docinject_oracle` | poison | docinject + **oracle-in-the-loop** (UCB1 по вердикту) | E2/E3 + resurf, SEARCH→CONFIRM | — |
+| `directinject_oracle` | poison | directinject + oracle-in-the-loop | то же | — |
+| `mem` | poison | легаси E1..E4 по регистрам | дифф ярусов | — |
+| `chain` | chain | связка A×B: чужой id через память → BAC | приземление правила + отпечатки жертвы | — |
+
+---
+
+## Вывод
+
+```
+output/runs/<date_time>/           # один прогон
+  <module>/                         # подпапка на модуль
+    report__<module>.json           # строгая схема attack_vector_report/1 (для ядра-LLM)
+    report__<module>.md             # человекочитаемо + «что написал юзер»
+    summary.json · attempts.jsonl · calls.jsonl · proof.md
+  findings.json · findings.md · coverage.* · attempts.jsonl   # агрегаты прогона
+output/VULN_REPORT.md / .pdf        # сводный отчёт по уязвимостям (команда report)
+```
+Каждый модуль **гарантированно** пишет `report__<name>.{json,md}` (драйвер зовёт `report_std` даже при
+падении вектора — тогда с error-находкой). Отрицательный результат = `not-demonstrated`, не «безопасно».
+
+---
+
+## Сводный отчёт по уязвимостям
+
+### Где забирать
+- **`output/VULN_REPORT.md`** — человекочитаемый отчёт (общая папка `output/`, верхний уровень).
+- **`output/VULN_REPORT.pdf`** — тот же отчёт PDF (кириллица+таблицы; нужен `weasyprint`).
+- Копия обоих — в папке прогона отчётника `output/runs/report-<date_time>/`.
+- Исходные пер-модульные отчёты (из которых он собран) — `output/runs/<date>/<module>/report__<name>.{json,md}`.
+
+### Как формируется (конвейер)
+```
+1) run.py a-all           каждый модуль -> report__<name>.json (строгая схема attack_vector_report/1,
+                           навязана report_std; вердикт — детерминированный оракул, не LLM)
+2) run.py report
+   ├─ synthesize.gather_latest()   свежайший report__<name>.json КАЖДОГО модуля (по всем прогонам)
+   ├─ фильтр                        оставляем только ПОДТВЕРЖДЁННЫЕ находки (passed/demonstrated)
+   ├─ сильная модель (слот reporter=claude-sonnet-5)
+   │     пишет: (1) резюме по severity + ключевые риски;
+   │            (2) уязвимости — ДЕДУП (одна уязвимость на несколько модулей) + атрибуция по модулям;
+   │     (при сбое LLM — детерминированный fallback из тех же данных)
+   ├─ КОД дописывает                (3) пер-модульную сводку «какой модуль что нашёл» —
+   │                                ДЕТЕРМИНИРОВАННО (перебор всех report__*.json, не на откуп LLM)
+   ├─ -> output/VULN_REPORT.md
+   └─ report/pdf.py (weasyprint)    md -> HTML+CSS -> output/VULN_REPORT.pdf
+```
+Ключевое: **LLM только формулирует прозу и сводит дубли; вердикт и пер-модульная таблица —
+детерминированные**. Отчёт можно пересобрать когда угодно (`run.py report`) без перепрогона атак.
+
+### Что внутри отчёта
+1. **Резюме** — сколько уязвимостей по severity, ключевые риски в 2-3 предложениях.
+2. **Уязвимости** — сведённые (дедуп по классу), каждая: что это + impact простыми словами, чем
+   подтверждено (детерминированный оракул, доля+Wilson-CI), воспроизведение, таксономия OWASP,
+   **какие модули подтвердили**.
+3. **Сводка по всем модулям** — детерминированная таблица «модуль → находки» (все 20, ничего не теряется).
+
+### Прокладки (на будущее)
+Форвард-совместим с модулями-прокладками: если у модуля отчёт пишет СТОРОННЯЯ LLM, он кладёт текст в
+поле `narrative` своего `report__<name>.json` — отчётник подхватит и адаптирует с атрибуцией к инструменту.
+
+---
+
+## Добавить свою атаку
+
+1. Скопируй `source/harness/attack_vectors/_template/` в `attack_vectors/<name>/` (имя — `[a-z0-9_]`).
+2. Заполни `vector.py` (подкласс `AttackVector`: `run()`/`findings()`), `params.yaml`, `README.md`.
+3. Готово — вектор виден в `run.py --list` и запускается `a-<name>` **без правок ядра**.
+
+Полная инструкция автора (контракт, оракул, params, failsafe, чек-лист): **`docs/ATTACK_VECTORS.md`**.
+Родственные poison-векторы могут наследовать общую базу `attack_vectors/_docbase.py` (готовый контур
+пробы + resurf-проверка + oracle-in-the-loop миксин).
+
+---
+
+## Конфиг (перенос на другую цель)
+
+- `config/target.yaml` — **единственный источник правды о цели**: endpoints, identities (посев),
+  auth_modes, ярусы памяти/лимиты, finalize-триггеры. Смена цели = правка этого файла.
+- `config/models.yaml` — слоты моделей: `attacker` (морфер), `judge`, `reporter` (отчёт), `target_*`.
+- `config/payloads.yaml`, `hypotheses.yaml` — формулировки/регистры и гипотезы (config-driven).
