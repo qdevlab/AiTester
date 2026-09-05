@@ -10,12 +10,22 @@ Failsafe: нет ключа / модель недоступна / кривой J
 
 import json
 import os
+import re
 import time
 
 _MAX_PER_FILE = 6000        # символов на файл в контексте модели
 _MAX_TOTAL = 40000          # общий бюджет контекста
 _SKIP = {"meta.json"}       # наши служебные — не главный сигнал (но stdout/stderr берём как контекст)
 _BIN_EXT = {".xlsx", ".docx", ".pptx", ".png", ".jpg", ".jpeg", ".pdf", ".zip", ".gz", ".bin", ".pyc"}
+# конфиги обёрток содержат КЛЮЧИ цели/OpenRouter — НЕ отдаём их сторонней LLM (+ редактим на всякий)
+_SENSITIVE_FILES = {"garak_rest.json", "garak_run.yaml", "llamator_config.json", "target_callback.py"}
+_SECRET_RE = re.compile(r"(sk-[A-Za-z0-9_\-]{6,}|Bearer\s+[A-Za-z0-9_\-.]+|"
+                        r"github_pat_[A-Za-z0-9_]+|ghp_[A-Za-z0-9]+)")
+
+
+def _redact(text):
+    """Вырезать секреты из текста перед отправкой сторонней LLM/логами."""
+    return _SECRET_RE.sub("<redacted>", text)
 
 
 def _gather(tool_dir):
@@ -29,11 +39,12 @@ def _gather(tool_dir):
     parts, total = [], 0
     for fn in files:
         base = os.path.basename(fn)
-        if base in _SKIP or base.startswith("report__") or os.path.splitext(base)[1].lower() in _BIN_EXT:
+        if (base in _SKIP or base in _SENSITIVE_FILES or base.startswith("report__")
+                or os.path.splitext(base)[1].lower() in _BIN_EXT):
             continue
         p = os.path.join(tool_dir, fn)
         try:
-            data = open(p, encoding="utf-8", errors="replace").read()
+            data = _redact(open(p, encoding="utf-8", errors="replace").read())
         except Exception:
             continue
         size = len(data)

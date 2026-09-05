@@ -1,0 +1,25 @@
+params:
+  attacker:
+    type: str
+    default: ""
+    description: "атакующая модель (пусто = из models.yaml generators.llamator)"
+  attacker_temperature:
+    type: float
+    default: 0.9
+    description: "temp атакующего (не 0 -> шире покрытие)"
+  caller_cus:
+    type: str
+    default: ""
+    description: "посеянный клиент-вызывающий (пусто = attacker_default)"
+  timeout_s:
+    type: int
+    default: 1800
+    description: "таймаут запуска тулы, сек"
+  llm_report:
+    type: bool
+    default: true
+    description: "сильная LLM сводит QC-отчёт (слот report)"
+  skip_clean:
+    type: bool
+    default: false
+    description: "не чистить память стенда перед прогоном (смоук)"

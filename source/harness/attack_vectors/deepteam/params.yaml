@@ -1,0 +1,33 @@
+params:
+  attacks_per_vuln:
+    type: int
+    default: 1
+    description: "атак на тип уязвимости (больше -> дольше)"
+  simulator:
+    type: str
+    default: ""
+    description: "модель-симулятор атак (пусто = из models.yaml generators.deepteam)"
+  evaluation:
+    type: str
+    default: ""
+    description: "модель-судья deepeval (пусто = из models.yaml)"
+  simulator_temperature:
+    type: float
+    default: 0.9
+    description: "temp симулятора (не 0 -> шире покрытие атак)"
+  caller_cus:
+    type: str
+    default: ""
+    description: "посеянный клиент-вызывающий (пусто = attacker_default)"
+  timeout_s:
+    type: int
+    default: 1800
+    description: "таймаут запуска тулы, сек"
+  llm_report:
+    type: bool
+    default: true
+    description: "сильная LLM сводит QC-отчёт (слот report)"
+  skip_clean:
+    type: bool
+    default: false
+    description: "не чистить память стенда перед прогоном (смоук)"

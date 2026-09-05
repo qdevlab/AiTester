@@ -91,9 +91,10 @@ echo "OPENROUTER_API_KEY=sk-or-..." > .env               # ключ подхва
 
 ---
 
-## Что поддерживает — модули атак (20)
+## Что поддерживает — модули атак (24)
 
-`active` = входит в `a-all`; иначе — только явным `a-<name>`.
+`active` = входит в `a-all`; иначе — только явным `a-<name>`. Обёртки внешних тул (поле
+`is_wrapper`) — `active`, но выпадают из `a-all-nowrapper` (быстрое ядро без внешних зависимостей).
 
 | вектор | тип | что проверяет | оракул | active |
 |---|---|---|---|---|
@@ -112,11 +113,20 @@ echo "OPENROUTER_API_KEY=sk-or-..." > .env               # ключ подхва
 | `i02_sleeper` | poison | отложенная активация (инертно до триггера/finalize) | E2 парный дифф вокруг finalize | ✓ |
 | `i03_single_injection` | poison | персистентность N=1 инъекции (обход дедупа) | E2 landing + E3 позже | ✓ |
 | `l03_recon` | recon | разведка инструментов/триггеров/промпта | pre-E1 пробы | ✓ |
+| `minja` | poison | MINJA — инъекция в память укорочением (query-only) | приземление маркера global/user | ✓ |
 | `stub` | self-test | проверка каркаса end-to-end (без стенда) | — | ✓ |
 | `docinject_oracle` | poison | docinject + **oracle-in-the-loop** (UCB1 по вердикту) | E2/E3 + resurf, SEARCH→CONFIRM | — |
 | `directinject_oracle` | poison | directinject + oracle-in-the-loop | то же | — |
 | `mem` | poison | легаси E1..E4 по регистрам | дифф ярусов | — |
 | `chain` | chain | связка A×B: чужой id через память → BAC | приземление правила + отпечатки жертвы | — |
+| `garak` | wrapper | нативный garak (latent/prompt injection) по цели | вывод тулы → скептический QC сильной LLM (confirmed/false_positive) | ✓ `[wrapper]` |
+| `deepteam` | wrapper | нативный deepteam (ExcessiveAgency/PromptInjection) через callback | risk-assessment → QC | ✓ `[wrapper]` |
+| `llamator` | wrapper | red-team чата (prompt-leak/sycophancy/logic) | вывод тулы → QC | ✓ `[wrapper]` |
+
+> **Обёртки** (`garak`/`deepteam`/`llamator`) = обычные модули с `is_wrapper=True`; движок в
+> `source/harness/tool_wrappers/`, тонкая прокладка — `attack_vectors/_toolbase.py`. Находка →
+> `demonstrated` только при независимой QC-оценке `confirmed`. Требуют venv тул (`config/models.yaml`
+> `generators.*`) + поднятый стенд; при отсутствии — graceful degrade (пишут not-demonstrated отчёт).
 
 ---
 

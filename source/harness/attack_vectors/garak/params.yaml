@@ -1,0 +1,29 @@
+params:
+  probes:
+    type: str
+    default: latentinjection
+    description: "probe-спека garak (latentinjection, promptinject, ...)"
+  prompt_cap:
+    type: int
+    default: 5
+    description: "макс. промптов на probe (цель медленная -> ограничиваем)"
+  model_type:
+    type: str
+    default: rest
+    description: "rest = наша цель :9600; test.Blank = смоук механики без цели"
+  caller_cus:
+    type: str
+    default: ""
+    description: "посеянный клиент-вызывающий (пусто = attacker_default)"
+  timeout_s:
+    type: int
+    default: 1800
+    description: "таймаут запуска тулы, сек"
+  llm_report:
+    type: bool
+    default: true
+    description: "сильная LLM сводит QC-отчёт по выводу тулы (слот report)"
+  skip_clean:
+    type: bool
+    default: false
+    description: "не чистить память стенда перед прогоном (смоук механики)"
