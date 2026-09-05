@@ -57,10 +57,27 @@ echo "OPENROUTER_API_KEY=sk-or-..." > .env               # ключ подхва
 
 ### Полный цикл: прогон → сводный отчёт
 ```bash
-./.venv/bin/python run.py a-all        # 1) все модули -> runs/<date>/<module>/report__<name>.{json,md}
-./.venv/bin/python run.py report       # 2) свод по всем модулям -> output/VULN_REPORT.{md,pdf}
+./.venv/bin/python run.py a-all        # 1) все модули -> runs/<прогон>/<module>/report__<name>.{json,md}
+./.venv/bin/python run.py report       # 2) свод ПО ЭТОМУ прогону -> output/VULN_REPORT.{md,pdf}
 ```
 Неактивные векторы (см. таблицу) в `a-all` не входят — зовите явно (`a-mem`, `a-chain`, `a-docinject_oracle`, `a-directinject_oracle`).
+
+### Одна папка прогона (важно: несколько агентов пишут в неё же)
+Прогон = **одна папка** `runs/<прогон>/`. Она **запоминается** (`runs/CURRENT`) и переиспользуется
+следующими вызовами и **другими агентами** — каждый модуль пишет в свою подпапку `runs/<прогон>/<module>/`,
+поэтому параллельные агенты не конфликтуют, а `report` собирает всё из ЭТОЙ папки (без разъезда по датам).
+```bash
+./.venv/bin/python run.py new --run camp1   # начать именованную папку и запомнить её (детерминированно)
+./.venv/bin/python run.py a-bac             # агент 1 -> runs/camp1/bac/        (--run не нужен: берёт CURRENT)
+./.venv/bin/python run.py a-docinject       # агент 2 -> runs/camp1/docinject/  (та же папка)
+./.venv/bin/python run.py where             # показать текущую папку и её модули
+./.venv/bin/python run.py report            # свод по runs/camp1/ -> в неё же + output/VULN_REPORT.{md,pdf}
+```
+- **`run.py new [--run <имя>]`** — начать новую папку (свежий штамп даты или именованная кампания) и запомнить.
+- **`--run <имя>`** на `a-*`/`report` — явно адресовать папку (несколько агентов дают ОДНО имя → пишут в одну папку, без гонок).
+- **`--new`** на `a-*` — форсить свежую папку для этого прогона.
+- Без флагов `a-*` берёт запомненную папку (`CURRENT`); если её нет — заводит свежую и запоминает.
+- `report` пишет отчёт **в саму папку прогона** и копию в общий `output/VULN_REPORT.{md,pdf}` («последний»).
 
 ### Прочее
 ```bash
@@ -104,33 +121,39 @@ echo "OPENROUTER_API_KEY=sk-or-..." > .env               # ключ подхва
 ## Вывод
 
 ```
-output/runs/<date_time>/           # один прогон
-  <module>/                         # подпапка на модуль
+output/runs/CURRENT                 # указатель на текущую папку прогона (её берут все агенты и report)
+output/runs/<прогон>/               # ОДНА папка прогона (штамп даты или имя из --run); переиспользуется
+  <module>/                         # подпапка на модуль (каждый агент — в свою -> без коллизий)
     report__<module>.json           # строгая схема attack_vector_report/1 (для ядра-LLM)
     report__<module>.md             # человекочитаемо + «что написал юзер»
+    findings.json                   # F-shape находки модуля (для кумулятивного свода прогона)
     summary.json · attempts.jsonl · calls.jsonl · proof.md
-  findings.json · findings.md · coverage.* · attempts.jsonl   # агрегаты прогона
-output/VULN_REPORT.md / .pdf        # сводный отчёт по уязвимостям (команда report)
+  findings.json · findings.md · coverage.* · attempts.jsonl   # свод ПО ВСЕЙ папке (кумулятивно)
+  VULN_REPORT.md / .pdf             # сводный отчёт этого прогона (команда report)
+output/VULN_REPORT.md / .pdf        # копия отчёта ПОСЛЕДНЕГО прогона (общая папка output/)
 ```
 Каждый модуль **гарантированно** пишет `report__<name>.{json,md}` (драйвер зовёт `report_std` даже при
 падении вектора — тогда с error-находкой). Отрицательный результат = `not-demonstrated`, не «безопасно».
+Свод папки (`findings/coverage/attempts`) пересобирается из подпапок модулей при каждом вызове —
+идемпотентно, поэтому финиширующий агент восстанавливает полную картину. Записи **атомарны**
+(temp + `os.replace`): параллельный агент/`report` не видит полу-записанный файл.
 
 ---
 
 ## Сводный отчёт по уязвимостям
 
 ### Где забирать
-- **`output/VULN_REPORT.md`** — человекочитаемый отчёт (общая папка `output/`, верхний уровень).
-- **`output/VULN_REPORT.pdf`** — тот же отчёт PDF (кириллица+таблицы; нужен `weasyprint`).
-- Копия обоих — в папке прогона отчётника `output/runs/report-<date_time>/`.
-- Исходные пер-модульные отчёты (из которых он собран) — `output/runs/<date>/<module>/report__<name>.{json,md}`.
+- **`output/runs/<прогон>/VULN_REPORT.{md,pdf}`** — отчёт этого прогона (в самой папке прогона).
+- **`output/VULN_REPORT.{md,pdf}`** — копия отчёта ПОСЛЕДНЕГО прогона (общая папка `output/`, верхний уровень; PDF нужен `weasyprint`).
+- Исходные пер-модульные отчёты (из которых он собран) — `output/runs/<прогон>/<module>/report__<name>.{json,md}`.
+- Какой прогон соберётся: `--run <имя>` → он; иначе `runs/CURRENT`; иначе самый свежий. (`run.py where` — показать текущий.)
 
 ### Как формируется (конвейер)
 ```
 1) run.py a-all           каждый модуль -> report__<name>.json (строгая схема attack_vector_report/1,
                            навязана report_std; вердикт — детерминированный оракул, не LLM)
-2) run.py report
-   ├─ synthesize.gather_latest()   свежайший report__<name>.json КАЖДОГО модуля (по всем прогонам)
+2) run.py report                    (по ОДНОЙ папке прогона: --run / CURRENT / последний)
+   ├─ synthesize.gather_latest(scope_dir)  report__<name>.json КАЖДОГО модуля ЭТОГО прогона
    ├─ фильтр                        оставляем только ПОДТВЕРЖДЁННЫЕ находки (passed/demonstrated)
    ├─ сильная модель (слот reporter=claude-sonnet-5)
    │     пишет: (1) резюме по severity + ключевые риски;
@@ -138,8 +161,8 @@ output/VULN_REPORT.md / .pdf        # сводный отчёт по уязви�
    │     (при сбое LLM — детерминированный fallback из тех же данных)
    ├─ КОД дописывает                (3) пер-модульную сводку «какой модуль что нашёл» —
    │                                ДЕТЕРМИНИРОВАННО (перебор всех report__*.json, не на откуп LLM)
-   ├─ -> output/VULN_REPORT.md
-   └─ report/pdf.py (weasyprint)    md -> HTML+CSS -> output/VULN_REPORT.pdf
+   ├─ -> runs/<прогон>/VULN_REPORT.md + копия output/VULN_REPORT.md
+   └─ report/pdf.py (weasyprint)    md -> HTML+CSS -> runs/<прогон>/VULN_REPORT.pdf + output/VULN_REPORT.pdf
 ```
 Ключевое: **LLM только формулирует прозу и сводит дубли; вердикт и пер-модульная таблица —
 детерминированные**. Отчёт можно пересобрать когда угодно (`run.py report`) без перепрогона атак.

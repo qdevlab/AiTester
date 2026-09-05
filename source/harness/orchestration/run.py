@@ -10,6 +10,7 @@
 
 import argparse
 import contextlib
+import glob
 import json
 import os
 import re
@@ -17,6 +18,7 @@ import sys
 import traceback
 
 from ..core.config import load, PROJECT_ROOT, OUTPUT_DIR
+from ..core import runlog
 from ..core.runlog import Run
 from ..core import provisioning, isolation
 from ..oracle import state
@@ -404,27 +406,65 @@ def cmd_mem(cfg, marker=None):
     return 0
 
 
-def cmd_report(cfg, model=None):
-    """Ядро-отчёт по уязвимостям: свод report__*.json всех модулей сильной LLM (fallback — детерм.).
+def cmd_report(cfg, model=None, run_sel=None):
+    """Ядро-отчёт по уязвимостям: свод report__*.json ОДНОГО прогона сильной LLM (fallback — детерм.).
+    Читает ту же общую папку, куда писали модули (CURRENT/--run), поэтому НЕ разъезжается по датам
+    и видит модули от всех (в т.ч. параллельных) агентов. Пишет в саму папку прогона + общий output/.
     Атрибуция по модулям + дедуп; форвард-совместим с модулями-прокладками (narrative)."""
     from ..report import synthesize
-    run = Run("report-" + _stamp(), cfg)
-    md, src, used = synthesize.build(run, cfg, model=model)
+    rid = runlog.resolve_read_run_id(run_sel)
+    if rid is None:
+        print("report: не найдено ни одного прогона (runs/ пуст). Запустите a-<vector>/a-all.")
+        return 1
+    run = Run(rid, cfg)                              # пишем В папку прогона, не плодим report-<date>
+    md, src, used = synthesize.build(run, cfg, model=model, scope_dir=run.dir)
     run.write_text("VULN_REPORT.md", md)
     top = os.path.join(OUTPUT_DIR, "VULN_REPORT.md")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    with open(top, "w", encoding="utf-8") as f:
-        f.write(md)
-    print(f"Отчёт по уязвимостям ({'LLM' if used else 'fallback'}) -> {top}")
+    runlog._atomic_write(top, md)                   # общая папка output/ — «последний отчёт»
+    print(f"Отчёт по уязвимостям ({'LLM' if used else 'fallback'}), прогон '{rid}':")
+    print(f"  в папке прогона -> {run.path('VULN_REPORT.md')}")
+    print(f"  общий (последний) -> {top}")
     pdf_top = os.path.join(OUTPUT_DIR, "VULN_REPORT.pdf")
     try:
         from ..report import pdf as pdfmod
-        pdfmod.render(md, pdf_top)
         pdfmod.render(md, run.path("VULN_REPORT.pdf"))
+        pdfmod.render(md, pdf_top)
         print(f"  PDF -> {pdf_top}")
     except Exception as e:
         print(f"  PDF не собран ({type(e).__name__}: {str(e)[:120]}) — MD на месте")
-    print(f"  источники ({len(src)}): {', '.join(os.path.basename(s) for s in src)}")
+    if not src:
+        print("  (в этом прогоне ещё нет report__*.json — модули не отработали?)")
+    else:
+        print(f"  источники ({len(src)}): {', '.join(os.path.basename(s) for s in src)}")
+    return 0
+
+
+def cmd_new(cfg, name=None):
+    """Начать НОВУЮ папку прогона (ротация): свежий штамп или именованная кампания (--run <имя>).
+    Все последующие a-<vector> — и другие агенты — будут писать в неё, отчёт соберётся по ней."""
+    rid = runlog.resolve_run_id(new=True, name=name)
+    Run(rid, cfg)                                   # создать папку
+    print(f"новый прогон: {rid}")
+    print(f"  папка: {os.path.join(OUTPUT_DIR, 'runs', rid)}")
+    print("  дальше: run.py a-<vector> [...]  (все агенты пишут сюда)  ->  run.py report")
+    return 0
+
+
+def cmd_where(cfg):
+    """Показать текущую папку прогона (куда пишут модули и откуда соберётся отчёт)."""
+    rid = runlog.current_run_id()
+    if not rid:
+        latest = runlog.resolve_read_run_id()
+        print("CURRENT не задан.",
+              f"Самый свежий прогон: {latest}" if latest else "Прогонов ещё нет.")
+        print("Начать: run.py new  (или a-<vector> создаст папку и запомнит её).")
+        return 0
+    d = os.path.join(OUTPUT_DIR, "runs", rid)
+    mods = sorted(os.path.basename(os.path.dirname(p))
+                  for p in glob.glob(os.path.join(d, "*", "report__*.json")))
+    print(f"текущий прогон: {rid}\n  папка: {d}")
+    print(f"  модули с отчётом ({len(mods)}): {', '.join(mods) if mods else '—'}")
     return 0
 
 
@@ -448,26 +488,35 @@ _OVR = re.compile(r"^([A-Za-z0-9_]+)--(.+)$")    # override: bac--max_turns=6
 
 
 def _split_vector_args(argv):
-    """Разбор новой грамматики. -> (selected|None, overrides, rest, list_mode).
+    """Разбор новой грамматики. -> (selected|None, overrides, list_mode, run_sel, new).
     selected=None, если не было ни одного a-* (тогда старый argparse-путь для back-compat).
-    a-all -> ['*']. overrides={vector:{key:val}}; 'vec--flag' без '=' -> True."""
-    selected, overrides, rest, list_mode, saw = [], {}, [], False, False
-    for tok in argv:
+    a-all -> ['*']. overrides={vector:{key:val}}; 'vec--flag' без '=' -> True.
+    --new -> свежая папка прогона; --run <имя>/--run=<имя> -> именованная кампания (одна папка)."""
+    selected, overrides, list_mode, saw = [], {}, False, False
+    run_sel, new = None, False
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
         if tok in ("--list", "--list-vectors"):
             list_mode = True
-            continue
-        m = _A_SEL.match(tok)
-        if m:
+        elif tok == "--new":
+            new = True
+        elif tok == "--run":
+            if i + 1 < len(argv):
+                run_sel = argv[i + 1]
+                i += 1
+        elif tok.startswith("--run="):
+            run_sel = tok.split("=", 1)[1]
+        elif _A_SEL.match(tok):
             saw = True
-            selected.append("*" if m.group(1) == "all" else m.group(1))
-            continue
-        m = _OVR.match(tok)
-        if m:
+            g = _A_SEL.match(tok).group(1)
+            selected.append("*" if g == "all" else g)
+        elif _OVR.match(tok):
+            m = _OVR.match(tok)
             k, sep, v = m.group(2).partition("=")
             overrides.setdefault(m.group(1), {})[k] = v if sep else True
-            continue
-        rest.append(tok)
-    return (selected if saw else None), overrides, rest, list_mode
+        i += 1
+    return (selected if saw else None), overrides, list_mode, run_sel, new
 
 
 def cmd_list(cfg):
@@ -578,6 +627,10 @@ def _run_one_vector(cfg, stamp, name, cls, overrides):
         print(f"    -> {name}/{os.path.basename(jp)}  (находок: {len(fs)})")
     except Exception as e:
         print(f"  [{name}] отчёт не записался: {type(e).__name__}: {e}")
+    try:                                   # F-shape находки модуля -> для кумулятивного свода прогона
+        subrun.write_json("findings.json", {"vector": name, "findings": fs})
+    except Exception as e:
+        print(f"  [{name}] findings.json не записался: {type(e).__name__}: {e}")
     try:
         _publish_top(name, subrun)
     except Exception as e:
@@ -585,8 +638,40 @@ def _run_one_vector(cfg, stamp, name, cls, overrides):
     return fs, subrun
 
 
-def cmd_vectors(cfg, selected, overrides):
+def _aggregate_run(parent, cfg):
+    """Пересобрать свод ВСЕГО прогона из подпапок модулей (кумулятивно, идемпотентно).
+    Читает КАЖДЫЙ раз все runs/<stamp>/<module>/{findings,attempts}.jsonl -> при параллельных
+    агентах любой финиширующий агент восстанавливает ПОЛНУЮ картину папки (последний = полный свод)."""
+    # attempts: атомарно перезаписываем родительский лог объединением всех модулей
+    lines = []
+    for ap in sorted(glob.glob(os.path.join(parent.dir, "*", "attempts.jsonl"))):
+        try:
+            lines += [l for l in open(ap, encoding="utf-8") if l.strip()]
+        except OSError:
+            pass
+    runlog._atomic_write(parent.path("attempts.jsonl"), "".join(lines))
+    # findings: объединяем F-shape находки всех модулей папки
+    all_findings = []
+    for fp in sorted(glob.glob(os.path.join(parent.dir, "*", "findings.json"))):
+        try:
+            all_findings += json.load(open(fp, encoding="utf-8")).get("findings", [])
+        except (json.JSONDecodeError, OSError):
+            pass
+    try:
+        doc = F.write(parent, all_findings, _meta(cfg))
+        print(f"свод прогона: {doc['count']} находок -> {parent.path('findings.json')}")
+    except Exception as e:
+        print(f"свод findings не записался: {type(e).__name__}: {e}")
+    try:
+        COV.write(parent)
+    except Exception as e:
+        print(f"coverage не записался: {type(e).__name__}: {e}")
+
+
+def cmd_vectors(cfg, selected, overrides, run_sel=None, new=False):
     """Generic-драйвер: единый жизненный цикл для всех выбранных векторов (заменяет if/elif).
+    ОДНА папка прогона: запоминается (CURRENT) и переиспользуется следующими вызовами и ДРУГИМИ
+    агентами (каждый пишет свой модуль в свою подпапку -> без коллизий). --new/--run управляют папкой.
     Максимальный failsafe: сбой одного вектора не трогает остальные и не роняет оркестратор."""
     try:
         reg = discover()
@@ -605,31 +690,14 @@ def cmd_vectors(cfg, selected, overrides):
             print(f"неизвестные векторы: {', '.join(unknown)} ; доступны: {', '.join(sorted(reg))}")
             if not names:
                 return 1
-    stamp = _stamp()
-    parent = Run(stamp, cfg)                        # runs/<date_time>/ — общий прогон
-    print("== VECTORS ==", "прогон:", parent.run_id, "|", ", ".join(names))
-    all_findings, subruns = [], []
+    stamp = runlog.resolve_run_id(new=new, name=run_sel)   # одна папка: CURRENT/--run/--new
+    parent = Run(stamp, cfg)                                # runs/<stamp>/ — общий прогон (переиспользуется)
+    print("== VECTORS ==", "прогон:", parent.run_id, "|", ", ".join(names),
+          "(общая папка — переиспользуется, в т.ч. параллельными агентами)")
     for name in names:
-        fs, sr = _run_one_vector(cfg, stamp, name, reg[name], overrides)   # -> runs/<stamp>/<name>/
-        all_findings += fs
-        subruns.append(sr)
-    # attempts подпапок сливаем в родителя -> coverage по всему прогону
-    try:
-        for sr in subruns:
-            for rec in sr.read_attempts():
-                parent.attempt(rec)
-    except Exception as e:
-        print(f"merge attempts не удался: {type(e).__name__}: {e}")
-    try:
-        doc = F.write(parent, all_findings, _meta(cfg))
-        print(f"findings всего: {doc['count']} -> {parent.path('findings.json')}")
-    except Exception as e:
-        print(f"свод findings не записался: {type(e).__name__}: {e}")
-    try:
-        COV.write(parent)
-    except Exception as e:
-        print(f"coverage не записался: {type(e).__name__}: {e}")
-    print(f"прогон: {parent.dir}/ (модули в подпапках)")
+        _run_one_vector(cfg, stamp, name, reg[name], overrides)   # -> runs/<stamp>/<name>/
+    _aggregate_run(parent, cfg)                            # кумулятивный свод по ВСЕЙ папке
+    print(f"прогон: {parent.dir}/ (модули в подпапках)  ·  отчёт: run.py report")
     return 0
 
 
@@ -637,14 +705,15 @@ def main(argv=None):
     _load_env()
     cfg = load()
     argv = list(sys.argv[1:] if argv is None else argv)
-    selected, overrides, rest, list_mode = _split_vector_args(argv)
+    selected, overrides, list_mode, run_sel, new = _split_vector_args(argv)
     if list_mode:
         return cmd_list(cfg)
     if selected is not None:                      # была грамматика a-* -> generic-драйвер
-        return cmd_vectors(cfg, selected, overrides)
+        return cmd_vectors(cfg, selected, overrides, run_sel=run_sel, new=new)
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["smoke", "bac", "bac-proof", "poison", "poison-proof",
-                                    "llm-repro", "models", "chain", "repro", "mem", "all", "report"])
+                                    "llm-repro", "models", "chain", "repro", "mem", "all", "report",
+                                    "new", "where"])
     ap.add_argument("--attempts", type=int, default=5)
     ap.add_argument("--no-llm", action="store_true")
     ap.add_argument("--marker", default=None, help="mem: искать эту метку по ярусам памяти")
@@ -652,7 +721,7 @@ def main(argv=None):
                     help="bac: многоходовой диалог (опционально; дефолт single-shot)")
     ap.add_argument("--turns", type=int, default=5, help="multiturn: макс. ходов в диалоге")
     ap.add_argument("--run", default=None,
-                    help="poison-proof: id/путь прогона (по умолчанию последний poison-*)")
+                    help="имя/id папки прогона: report/new/poison-proof (по умолчанию — CURRENT/последний)")
     args = ap.parse_args(argv)
 
     if args.cmd == "smoke":
@@ -682,7 +751,11 @@ def main(argv=None):
         cmd_mem(cfg, marker=args.marker)
         return 0
     if args.cmd == "report":
-        return cmd_report(cfg)
+        return cmd_report(cfg, run_sel=args.run)
+    if args.cmd == "new":
+        return cmd_new(cfg, name=args.run)
+    if args.cmd == "where":
+        return cmd_where(cfg)
     if args.cmd == "all":
         cmd_bac(cfg, args.attempts)          # -> output/PROOF.md
         cmd_poison(cfg, args.attempts, use_llm=not args.no_llm)  # -> output/POISON_PROOF.md

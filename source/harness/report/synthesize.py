@@ -43,11 +43,16 @@ _PROMPT = """Ты — старший специалист по безопасн�
 """
 
 
-def gather_latest(exclude=("stub", "crashtest", "pinj")):
+def gather_latest(exclude=("stub", "crashtest", "pinj"), scope_dir=None):
     """Свежайший report__<vector>.json по каждому вектору. -> {vector: (path, dict)}.
-    Ищет и в подпапках модулей runs/<stamp>/<module>/, и в легаси-плоских runs/<stamp>/."""
-    paths = (glob.glob(os.path.join(OUTPUT_DIR, "runs", "*", "*", "report__*.json"))   # новая: <stamp>/<module>/
-             + glob.glob(os.path.join(OUTPUT_DIR, "runs", "*", "report__*.json")))     # легаси: плоско
+    scope_dir задан -> читаем ТОЛЬКО эту папку прогона (одна папка = один отчёт, без разъезда по
+    датам). scope_dir=None -> легаси-поведение: свежайшее по каждому модулю ПО ВСЕМ прогонам."""
+    if scope_dir:
+        paths = (glob.glob(os.path.join(scope_dir, "*", "report__*.json"))             # <stamp>/<module>/
+                 + glob.glob(os.path.join(scope_dir, "report__*.json")))               # плоско в папке
+    else:
+        paths = (glob.glob(os.path.join(OUTPUT_DIR, "runs", "*", "*", "report__*.json"))   # новая: <stamp>/<module>/
+                 + glob.glob(os.path.join(OUTPUT_DIR, "runs", "*", "report__*.json")))     # легаси: плоско
     latest = {}
     for p in sorted(paths):
         try:
@@ -88,9 +93,9 @@ def _payload(reports):
     return items
 
 
-def build(run, cfg, model=None):
-    """-> (markdown, source_files, used_llm)."""
-    reports = gather_latest()
+def build(run, cfg, model=None, scope_dir=None):
+    """-> (markdown, source_files, used_llm). scope_dir -> отчёт только по этой папке прогона."""
+    reports = gather_latest(scope_dir=scope_dir)
     payload = _payload(reports)
     src = [p for _v, (p, _d) in sorted(reports.items())]
     tgt = cfg.target["target"]["name"]
