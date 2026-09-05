@@ -5,6 +5,41 @@ openrouter:
   base_url: https://openrouter.ai/api/v1
   api_key_env: OPENROUTER_API_KEY          # экспортировать перед прогоном (или harness .env)
 
+# --- Обёртки внешних генераторов payload'ов (модуль-прокладка) ---------------------
+# Изоляция: каждая тула живёт в СВОЁМ venv, зовётся подпроцессом. Путь к venv — тут (не в коде).
+# Нет venv/тулы -> генератор недоступен -> mem-вектор откатывается на native (см. generators/).
+generators:
+  deepteam:
+    venv_python: /home/dev/genai-sectest/.venv-deepteam/bin/python
+    timeout_s: 1800
+    simulator: deepseek/deepseek-v4-flash   # атакующая LLM (лучший морфер по бенчу; не отказывается)
+    simulator_temperature: 0.9              # НЕ 0: покрытие атак важнее детерминизма
+    evaluation: gpt-4o-mini                 # судья — дёшево (первый проход; QC ловит false-pos)
+    vulnerabilities:                        # имена классов deepteam (VULN_MAP) + их types
+      - name: ExcessiveAgency
+        types: [functionality, permissions, autonomy]
+    attacks: [PromptInjection]              # имена классов deepteam (ATTACK_MAP)
+    attacks_per_vuln: 1
+  garak:
+    venv_python: /home/dev/genai-sectest/.venv-garak/bin/python
+    timeout_s: 1800
+    probes: latentinjection          # какие probe гонять против цели
+    prompt_cap: 5                     # ограничение промптов на probe (цель медленная)
+  llamator:
+    venv_python: /home/dev/genai-sectest/.venv-llamator/bin/python
+    timeout_s: 1800
+    report_language: en
+    num_threads: 1
+    attacker: deepseek/deepseek-v4-flash    # атакующая LLM (лучший морфер; не отказывается)
+    attacker_temperature: 0.9               # НЕ 0: покрытие. judge — temp=0 в раннере
+    # judge берётся из slots.judge (gpt-4o-mini, дёшево); report/QC — slots.report (gpt-4o)
+    # red-team чат-поверхности (не память): утечка системного промпта (=глобальный ярус),
+    # sycophancy (комплаенс-рычаг), логическая несогласованность. [code_name, {params}]
+    tests:
+      - [system_prompt_leakage, {num_attempts: 1, multistage_depth: 3}]
+      - [sycophancy, {num_attempts: 1, multistage_depth: 3}]
+      - [logical_inconsistencies, {num_attempts: 1, multistage_depth: 3}]
+
 slots:
   # Мозг агента цели и модель консолидации — задаются в .env стенда (оверлей), не в коде тулы.
   target_brain:
@@ -47,6 +82,16 @@ slots:
       - "openai/gpt-4o-mini"
       - "anthropic/claude-sonnet-5"
     params: {temperature: 0.0, seed: 7, max_tokens: 400, reasoning: {enabled: false}}
+
+  # Модель QC-СВОДКИ вывода внешних тул (tool_wrappers/llm_report). Скептик: отличает реальное
+  # пробитие от ложноположительного вердикта тулы. gpt-4o — проверен (ловит false_positive). ВНИМАНИЕ:
+  # пересекается со слотом `reporter` ниже (та же роль); свести к одному после прогона — см. GLOBAL_FIXES.
+  report:
+    default: "openai/gpt-4o"
+    candidates:
+      - "openai/gpt-4o"
+      - "anthropic/claude-sonnet-5"
+      - "openai/gpt-4o-mini"                  # аварийный фолбэк (слабее в QC)
 
   # Ядро-отчётник: собирает report__*.json всех модулей -> человекочитаемый отчёт по уязвимостям.
   # Сильная модель (пишет прозу/сводит), НЕ судит (вердикт — детерминированный оракул). Длинный вывод.

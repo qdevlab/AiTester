@@ -1,0 +1,24 @@
+# MINJA — параметры. Override из CLI: minja--attempts=4 minja--trigger=chat_word
+params:
+  attempts:
+    type: int
+    default: 3
+    description: "Попыток (каждая: cold-контроль + лестница укорочения). Доля + Wilson-CI. КАЖДАЯ попытка = много finalize (медленно)."
+  trigger:
+    type: str
+    default: endpoint
+    options: [endpoint, chat_word]
+    description: "Канал финализации/консолидации памяти."
+  # ladder — лестница укорочения (сильная->безобидная), плейсхолдер {marker}. Дефолт в vector.py.
+  ladder:
+    type: list
+    default: []
+    description: "Переопределить лестницу укорочения (список формулировок с {marker}, сильная->безобидная). Пусто -> дефолт из vector.py."
+  use_llm:
+    type: bool
+    default: true
+    description: "Генерить лестницу укорочения deepseek-морфером под global-консолидацию (иначе статический дефолт)."
+  morph_model:
+    type: str
+    default: deepseek/deepseek-v4-flash
+    description: "Модель-морфер для генерации лестницы (@0.9 из слота attacker). Fallback на статику при сбое."

@@ -212,7 +212,8 @@ def _capture_clean_reply(client, victim_cus, cfg):
     return r["content"]
 
 
-def run_mvp(run, cfg=None, attempts=4, use_llm=True, registers=("benign", "compliance", "universal")):
+def run_mvp(run, cfg=None, attempts=4, use_llm=True, registers=("benign", "compliance", "universal"),
+            generator="native"):
     """Продольное отравление по нескольким регистрам + baseline.
 
     benign -> ожидаем within-user (scope=user), надёжнее; compliance/universal -> сильнее гнут в
@@ -236,19 +237,36 @@ def run_mvp(run, cfg=None, attempts=4, use_llm=True, registers=("benign", "compl
     run.attempt({"task": "memory_poison", "event": "prepare_reset", "reset": reset, "greybox": greybox})
     clean_reply = _capture_clean_reply(client, victim, cfg)
 
-    # собрать payload-спеки по регистрам: статические из payloads.yaml + LLM-мутации
-    atk = Attacker(run.dir, cfg) if use_llm else None
+    # собрать payload-спеки: статические сиды из payloads.yaml (база, всегда) + мутации генератора.
+    # ИСТОЧНИК мутаций выбирается через контракт-прокладку (generator): native | deepteam | garak.
     dialog_specs = []
-    for reg in registers:
+    for reg in registers:                                  # статические сиды — всегда
         for d in cfg.payloads["memory_poisoning"].get(reg, []):
             dialog_specs.append({"register": reg, "turns": d["turns"]})
-        if atk is not None:
-            try:
-                seeds = corpus.templates("poison_dialog")   # выигравшие диалоги -> модель адаптирует
-                for turns in atk.gen_poison_dialogs("{marker}", register=reg, n=1, seeds=seeds):
-                    dialog_specs.append({"register": reg, "turns": turns})
-            except Exception as e:
-                run.attempt({"task": "memory_poison", "event": "gen_error", "register": reg, "error": str(e)[:200]})
+
+    if use_llm:
+        seeds = corpus.templates("poison_dialog")          # выигравшие диалоги -> модель адаптирует
+        try:
+            from ..attack_vectors.mem.generators import build_generator, GenContext
+            gctx = GenContext(cfg=cfg, run=run)
+            gen = build_generator(generator, gctx)
+            run.attempt({"task": "memory_poison", "event": "generator_selected",
+                         "requested": generator, "generator": gen.name})
+            mutated = gen.generate(gctx, registers=registers, n_per_register=1, seeds=seeds)
+            dialog_specs += mutated
+            log(f"генератор '{gen.name}': +{len(mutated)} мутаций")
+        except Exception as e:
+            # жёсткий фолбэк на прямой морфер, чтобы не потерять мутации при сбое каркаса
+            run.attempt({"task": "memory_poison", "event": "generator_framework_error",
+                         "error": str(e)[:200], "fallback": "legacy_morph"})
+            atk = Attacker(run.dir, cfg)
+            for reg in registers:
+                try:
+                    for turns in atk.gen_poison_dialogs("{marker}", register=reg, n=1, seeds=seeds):
+                        dialog_specs.append({"register": reg, "turns": turns})
+                except Exception as e2:
+                    run.attempt({"task": "memory_poison", "event": "gen_error",
+                                 "register": reg, "error": str(e2)[:200]})
 
     log(f"собрано {len(dialog_specs)} вариантов payload по регистрам {list(registers)}")
     marker_fn = lambda: isolation.fresh_marker()  # noqa: E731

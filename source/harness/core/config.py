@@ -111,6 +111,28 @@ class Config:
         t = self.target.get("target", {}) or {}
         return " ".join((t.get("description") or "").split()).strip()
 
+    # --- deployment / текущая модель-мозг цели -----------------------------------
+    def deployment(self):
+        return self.target.get("deployment", {}) or {}
+
+    def target_model_current(self):
+        """Текущая модель-мозг цели: читаем model_env_var из .env стенда (deployment).
+        Нужно для АТРИБУЦИИ прогонов (какую модель тестировали). None, если недоступно."""
+        dep = self.deployment()
+        d = dep.get("dir")
+        if not d:
+            return None
+        var = dep.get("model_env_var", "RESEARCH_MODEL")
+        path = os.path.join(d, dep.get("env_file", ".env"))
+        try:
+            for line in open(path, encoding="utf-8"):
+                line = line.strip()
+                if line.startswith(var + "="):
+                    return line.split("=", 1)[1].strip()
+        except Exception:
+            return None
+        return None
+
     def strategies(self):
         """Библиотека тактик для многоходового цикла (payloads.strategies, дефолт если не задано)."""
         s = self.payloads.get("strategies")

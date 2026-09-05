@@ -14,3 +14,8 @@ params:
     default: [benign, compliance, universal]
     options: [benign, compliance, universal]
     description: "Регистры формулировок: benign->within-user надёжнее, compliance/universal->в global."
+  generator:
+    type: str
+    default: native
+    options: [native, deepteam, garak]
+    description: "Источник мутаций payload'ов: native (LLM-морфер) | deepteam (обёртка ContextPoisoning) | garak (обёртка latent-injection). Недоступный тул -> откат на native."
