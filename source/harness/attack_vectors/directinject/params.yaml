@@ -1,0 +1,35 @@
+# Параметры directinject (прямой запрос). Override: directinject--mode=precedent directinject--attempts=3
+params:
+  attempts:
+    type: int
+    default: 5
+    description: "Раундов на каждый профиль (доля + Wilson-CI)."
+  mode:
+    type: str
+    default: all
+    options: [all, imperative, precedent, authority]
+    description: "all=дефолтный набор профилей; иначе один профиль по имени framing."
+  reset_each:
+    type: bool
+    default: true
+    description: "Чистить память перед каждым кейсом (scoped purge) — железная атрибуция."
+  filler_min:
+    type: int
+    default: 1
+    description: "Мин. подготовительных фраз перед запросом."
+  filler_max:
+    type: int
+    default: 2
+    description: "Макс. подготовительных фраз."
+  profiles:
+    type: str
+    default: ""
+    description: "Явный список профилей через запятую (перебивает mode)."
+  framing:
+    type: str
+    default: ""
+    description: "Override framing (imperative|precedent|authority) — одна комбинация."
+  carrier:
+    type: str
+    default: static
+    description: "Не используется (документа нет); оставлено для единообразия базы."

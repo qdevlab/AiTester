@@ -11,20 +11,20 @@ import os
 from . import poison_proof as PP
 
 
-def _load(run_dir):
+def _load(run_dir, task="docinject"):
     path = os.path.join(run_dir, "attempts.jsonl")
     if not os.path.exists(path):
         return []
     out = []
     for line in open(path, encoding="utf-8"):
         d = json.loads(line)
-        if d.get("task") == "docinject" and d.get("event") is None:
+        if d.get("task") == task and d.get("event") is None:
             out.append(d)
     return out
 
 
-def build(run_dir):
-    att = _load(run_dir)
+def build(run_dir, task="docinject"):
+    att = _load(run_dir, task)
     if not att:
         return None
     calls = PP._load_calls(run_dir)

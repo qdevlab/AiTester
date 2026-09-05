@@ -1,0 +1,25 @@
+# Параметры docinject_oracle (oracle-in-the-loop). Override: docinject_oracle--attempts=12
+params:
+  attempts:
+    type: int
+    default: 8
+    description: "Бюджет SEARCH-фазы (проб UCB1 по профилям)."
+  confirm_n:
+    type: int
+    default: 3
+    description: "CONFIRM-фаза: сколько раз прогнать топ-arm для доли+Wilson-CI."
+  carrier:
+    type: str
+    default: static
+    options: [llm, static]
+    description: "Носитель документа: static (дёшево для поиска) / llm."
+  reset_each:
+    type: bool
+    default: true
+    description: "Чистить память перед каждой пробой (железная атрибуция)."
+  gen_model:
+    type: str
+    default: ""
+    description: "Модель носителя при carrier=llm (пусто = слот attacker)."
+  filler_min: {type: int, default: 1, description: "Мин. подготовительных фраз."}
+  filler_max: {type: int, default: 2, description: "Макс. подготовительных фраз."}
