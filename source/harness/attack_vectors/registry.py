@@ -48,7 +48,8 @@ def _load_params_yaml(folder):
     path = os.path.join(folder, "params.yaml")
     if not os.path.exists(path):
         return {}, {}
-    data = yaml.safe_load(open(path, encoding="utf-8")) or {}
+    with open(path, encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
     spec = data.get("params", data) if isinstance(data, dict) else {}
     defaults, schema = {}, {}
     for k, v in (spec or {}).items():
