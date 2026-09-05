@@ -416,6 +416,14 @@ def cmd_report(cfg, model=None):
     with open(top, "w", encoding="utf-8") as f:
         f.write(md)
     print(f"Отчёт по уязвимостям ({'LLM' if used else 'fallback'}) -> {top}")
+    pdf_top = os.path.join(OUTPUT_DIR, "VULN_REPORT.pdf")
+    try:
+        from ..report import pdf as pdfmod
+        pdfmod.render(md, pdf_top)
+        pdfmod.render(md, run.path("VULN_REPORT.pdf"))
+        print(f"  PDF -> {pdf_top}")
+    except Exception as e:
+        print(f"  PDF не собран ({type(e).__name__}: {str(e)[:120]}) — MD на месте")
     print(f"  источники ({len(src)}): {', '.join(os.path.basename(s) for s in src)}")
     return 0
 
