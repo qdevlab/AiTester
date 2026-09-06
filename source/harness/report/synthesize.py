@@ -104,10 +104,15 @@ def _run_meta_md(scope_dir):
     m = read_manifest(scope_dir)
     if not m:
         return ""
-    return (f"_**Запуск:** `{m.get('command', '?')}`  ·  **Начало:** {m.get('started', '?')}  ·  "
-            f"**Конец:** {m.get('finished', '—')}  ·  **Сеанс:** {m.get('run_id', '?')}  ·  "
-            f"**Длительность:** {_dur(m.get('started'), m.get('finished'))}"
-            f"{'  ·  СТАТУС: ' + m.get('status') if m.get('status') and m.get('status') != 'done' else ''}._\n\n")
+    fields = [f"**Запуск:** `{m.get('command', '?')}`",
+              f"**Начало:** {m.get('started', '?')}",
+              f"**Конец:** {m.get('finished', '—')}",
+              f"**Сеанс:** {m.get('run_id', '?')}",
+              f"**Длительность:** {_dur(m.get('started'), m.get('finished'))}"]
+    if m.get("status") and m.get("status") != "done":
+        fields.append(f"**СТАТУС:** {m.get('status')}")
+    # каждое поле — своей строкой (жёсткий перенос markdown: два пробела в конце), серым (em)
+    return "\n".join(f"_{f}_  " for f in fields) + "\n\n"
 
 
 def _modules_list_section(reports):
@@ -326,14 +331,15 @@ def _repro_section(reports):
                    "resurf_author_reply": "в новом чате автора"}
             for k, txt in s["replies"]:
                 lines.append(f"- _{tag.get(k, k)}:_ {txt[:500].strip()}")
+        # каждый подраздел — своей строкой (жёсткий перенос markdown: два пробела в конце)
         if s["observed"]:
             lines.append("")
-            lines.append("**Наблюдаемый эффект:** " + "; ".join(s["observed"]) + ".")
+            lines.append("**Наблюдаемый эффект:** " + "; ".join(s["observed"]) + ".  ")
         fix = _FIX_BY_CLASS.get((d.get("findings", [{}])[0] or {}).get("type"))
         if fix:
-            lines.append(f"**Что чинить:** {fix}")
+            lines.append(f"**Что чинить:** {fix}  ")
         if s.get("trace_rel"):
-            lines.append(f"**Файл трассировки:** `{s['trace_rel']}`")
+            lines.append(f"**Файл трассировки:** `{s['trace_rel']}`  ")
         lines.append("")
     return "\n".join(lines)
 
