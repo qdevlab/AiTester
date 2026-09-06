@@ -31,10 +31,12 @@ class EpisodicFalsePrecedent(AttackVector):
     @staticmethod
     def _landed(marker, cus, cfg):
         """E2 для этого класса: маркер в episodic ИЛИ dialog самого клиента; semantic — запасной."""
-        for tier in ("episodic", "dialog", "semantic"):
-            if state.find_marker(marker, tier, cfg, user_id=str(cus)):
-                return tier
+        # БД-проверка канарейки ОТКЛЮЧЕНА (только трейс+Q&A). Приземление — из трейсера (extra_landing=save_episodes).
         return None
+        # for tier in ("episodic", "dialog", "semantic"):
+        #     if state.find_marker(marker, tier, cfg, user_id=str(cus)):
+        #         return tier
+        # return None
 
     def run(self, ctx):
         cfg = ctx.cfg

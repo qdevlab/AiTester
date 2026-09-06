@@ -34,6 +34,8 @@ def _md(vector, doc, run):
     for f in doc["findings"]:
         lines += _md_finding(f)
 
+    lines += _trace_section(run)
+
     proof = None
     try:
         proof = vector.proof(run.dir)
@@ -64,5 +66,38 @@ def _md_finding(f):
         out.append("- **метод:** детерминированный (оракул состояния), доля не применяется")
     if f.get("reason"):
         out.append(f"- **заметки:** {f['reason']}")
+    out.append("")
+    return out
+
+
+def _trace_section(run):
+    """Секция «трейсы успешных проб» (атаки на память): маркер -> где село -> файл в traces/.
+    Строится из attempts.jsonl (поле trace_path). Нет трейсов -> секция не выводится."""
+    import json
+    path = os.path.join(run.dir, "attempts.jsonl")
+    if not os.path.exists(path):
+        return []
+    rows = []
+    for line in open(path, encoding="utf-8"):
+        try:
+            d = json.loads(line)
+        except (ValueError, TypeError):
+            continue
+        tp = d.get("trace_path")
+        if not tp:
+            continue
+        rel = os.path.relpath(tp, run.dir) if os.path.isabs(tp) else tp
+        tv = d.get("tracer_verdict") or {}
+        top = tv.get("top") or {}
+        where = f"{top.get('tier')}/{top.get('scope')}" if top else "?"
+        methods = ", ".join(f"{L.get('method')}({L.get('field')})" for L in tv.get("landings", [])) or "?"
+        rows.append((d.get("marker", "?"), where, methods, rel))
+    if not rows:
+        return []
+    out = ["## Трейсы успешных проб (где уязвимость)", "",
+           "Каждая успешная проба атаки на память сохраняет трейс в `traces/`. Открой файл, чтобы увидеть, "
+           "каким методом стораджа и на какой ярус легла канарейка — это и есть место уязвимости.", ""]
+    for marker, where, methods, rel in rows:
+        out.append(f"- `{marker}` → село **{where}** через `{methods}` — трейс: `{rel}`")
     out.append("")
     return out

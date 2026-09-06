@@ -20,7 +20,7 @@ from ..core.client import AgentClient
 from ..core import provisioning, isolation, corpus
 from ..core.attacker import Attacker
 from ..core.log import log
-from ..oracle import state, memory_observer
+from ..oracle import state
 from ..oracle.tracer import TraceAnalyzer
 from ..oracle.judge_llm import Judge
 
@@ -55,7 +55,8 @@ def poison_cycle(run, client, judge, attacker_cus, victim_cus, turns, marker,
     tr = TraceAnalyzer.from_cfg(cfg)   # внешний трейсер памяти (независим от БД/грей-бокса)
     tr.clear()                         # очистить файл трейсера ДО диалога (no-op если выключен/нет файла)
 
-    tl = memory_observer.Timeline(cfg) if greybox else None
+    # tl = memory_observer.Timeline(cfg) if greybox else None   # БД-снимки диффа ОТКЛЮЧЕНЫ (только трейс+Q&A)
+    tl = None
     if tl:
         tl.mark("before")
 
@@ -153,6 +154,8 @@ def poison_cycle(run, client, judge, attacker_cus, victim_cus, turns, marker,
 def clean_baseline(run, client, attacker_cus, attempts=5, trigger="endpoint", cfg=None, greybox=True):
     """Базовая частота global-scope на БЕЗОБИДНОМ диалоге (без атаки) — находка = превышение над ней."""
     cfg = cfg or load()
+    # БД-проверка base_rate ОТКЛЮЧЕНА: проверки только через трейс + Q&A (не через чтение БД).
+    return {"attempts": 0, "global_writes": 0, "base_rate": 0.0, "unavailable": True}
     if not greybox:                        # без БД базовую частоту (дифф policy-яруса) не измерить
         return {"attempts": 0, "global_writes": 0, "base_rate": 0.0, "unavailable": True}
     key = provisioning.ensure_key(attacker_cus, cfg)
@@ -161,11 +164,11 @@ def clean_baseline(run, client, attacker_cus, attempts=5, trigger="endpoint", cf
     log(f"baseline: {attempts} безобидных финализаций (без атаки)")
     global_writes = 0
     for i in range(attempts):
-        before = len(state.policy_facts(cfg))
+        before = 0  # len(state.policy_facts(cfg))  # БД-чтение отключено
         sid = isolation.new_session_id("base")
         client.dialog(key, benign_turns, session_id=sid, auth_mode="vulnerable")
         client.finalize(key, sid, via=trigger, auth_mode="vulnerable")
-        after = len(state.policy_facts(cfg))
+        after = 0  # len(state.policy_facts(cfg))  # БД-чтение отключено
         if after > before:
             global_writes += 1
         isolation.clear_working(attacker_cus, sid, cfg)

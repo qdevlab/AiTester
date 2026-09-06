@@ -65,8 +65,15 @@ def build(run_dir, task="docinject"):
         if a.get("resurf_author") and a.get("resurf_author_reply"):
             lines += ["", "  ответ НОВОГО чата автора:", "",
                       "  > " + (a["resurf_author_reply"] or "").replace("\n", "\n  > "), ""]
-        lines += [f"- grey-box ярусы: global={a.get('E2_global')}, user={a.get('E2_user')}, "
-                  f"контекст жертвы={a.get('E3_victim_ctx')}", ""]
+        _tv = a.get("tracer_verdict") or {}
+        _top = _tv.get("top") or {}
+        _meth = ", ".join(f"{L.get('method')}({L.get('field')})" for L in _tv.get("landings", [])) or "?"
+        _tp = a.get("trace_path")
+        _rel = (os.path.relpath(_tp, run_dir) if _tp and os.path.isabs(_tp) else _tp)
+        lines += [f"- приземление (трейсер): global={a.get('E2_global')}, user={a.get('E2_user')}, "
+                  f"контекст={a.get('E3_victim_ctx')}",
+                  f"- **где уязвимость (трейс):** село {_top.get('tier')}/{_top.get('scope')} через `{_meth}`"
+                  + (f" — трейс `{_rel}`" if _rel else ""), ""]
 
     out = os.path.join(run_dir, "proof.md")
     with open(out, "w", encoding="utf-8") as f:

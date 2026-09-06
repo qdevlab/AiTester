@@ -192,6 +192,13 @@ def _worked_example(attempt, calls, kind):
     e3 = "✔" if attempt.get("E3_in_context") else "—"
     out.append(f"- **E3** (сборка контекста цели {tgt}): маркер в контексте {e3} "
                f"(канал `{attempt.get('E3_via')}`).\n")
+    _tp = attempt.get("trace_path")
+    if _tp:
+        _tv = attempt.get("tracer_verdict") or {}
+        _top = _tv.get("top") or {}
+        _meth = ", ".join(f"{L.get('method')}({L.get('field')})" for L in _tv.get("landings", [])) or "?"
+        out.append(f"- **где уязвимость (трейс):** село {_top.get('tier')}/{_top.get('scope')} через "
+                   f"`{_meth}` — трейс `{os.path.basename(_tp)}`.\n")
 
     out.append(f"**Шаг 4 — эффект на цель ({tgt}, новая сессия):**\n")
     vr = _victim_read(marker, calls)

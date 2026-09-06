@@ -32,20 +32,23 @@ class PolicyConformantFactInjection(AttackVector):
 
     def _baseline(self, ctx, attacker, trigger, n):
         """Базовая частота global-записи на БЕЗОБИДНЫХ финализациях (без атаки)."""
-        cfg = ctx.cfg
-        client = ctx.client()
-        g = 0
-        for i in range(n):
-            with attempt_guard(ctx.run, label=f"{self.name}:base#{i}"):
-                key = provisioning.ensure_key(attacker, cfg)
-                before = len(state.policy_facts(cfg))
-                sid = isolation.new_session_id("c03-base")
-                client.dialog(key, BENIGN, session_id=sid, auth_mode="vulnerable")
-                client.finalize(key, sid, via=trigger, auth_mode="vulnerable")
-                if len(state.policy_facts(cfg)) > before:
-                    g += 1
-                isolation.clear_working(attacker, sid, cfg)
-        return g
+        # БД-проверка base_rate ОТКЛЮЧЕНА: проверки только через трейс + Q&A (не через чтение БД).
+        # Откат — раскомментировать блок ниже (нужен прямой доступ к policy-ярусу mongo).
+        return 0
+        # cfg = ctx.cfg
+        # client = ctx.client()
+        # g = 0
+        # for i in range(n):
+        #     with attempt_guard(ctx.run, label=f"{self.name}:base#{i}"):
+        #         key = provisioning.ensure_key(attacker, cfg)
+        #         before = len(state.policy_facts(cfg))
+        #         sid = isolation.new_session_id("c03-base")
+        #         client.dialog(key, BENIGN, session_id=sid, auth_mode="vulnerable")
+        #         client.finalize(key, sid, via=trigger, auth_mode="vulnerable")
+        #         if len(state.policy_facts(cfg)) > before:
+        #             g += 1
+        #         isolation.clear_working(attacker, sid, cfg)
+        # return g
 
     def run(self, ctx):
         cfg = ctx.cfg
