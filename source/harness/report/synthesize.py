@@ -122,8 +122,36 @@ def build(run, cfg, model=None, scope_dir=None):
               f"_Синтез: {'модель ' + (model or slot['default']) if used_llm else 'детерминированный fallback'}. "
               f"Модулей: {len(reports)}. Источники: {src_names}. "
               f"Вердикт — детерминированный state-оракул (дифф БД/сервиса), не текст-судья._\n\n")
-    # Пер-модульная сводка — ДЕТЕРМИНИРОВАННО (перебор всех собранных отчётов, включая oracle-модули).
-    return header + body + "\n\n" + _module_table(reports), src, used_llm
+    # Разделы строятся КОДОМ (не на откуп LLM): раздел про внешние тулы + пер-модульная сводка.
+    sections = [header + body, _tools_section(reports), _module_table(reports)]
+    return "\n\n".join(s for s in sections if s and s.strip()), src, used_llm
+
+
+def _tools_section(reports):
+    """ДЕТЕРМИНИРОВАННЫЙ раздел про запуск внешних тул (обёрток). Гарантированно попадает в отчёт.
+    Обёртка = модуль с полем narrative (его кладёт report_std от ToolVector). По каждой: как отработала,
+    вердикт самой тулы, оценка QC (ПРЕДПОЛОЖЕНИЕ, не оракул), что заявила/подтвердил QC, ссылка на
+    полный пер-тульный отчёт."""
+    tools = [(v, d) for v, (_p, d) in sorted(reports.items()) if d.get("narrative")]
+    if not tools:
+        return ""
+    lines = ["## Внешние тулы (обёртки) — запуск и разбор", "",
+             "> По обёрткам НЕТ детерминированного оракула (это текст-атаки на чат). Вердикт ниже — "
+             "**предположение** второй LLM (QC перечитывает транскрипты), не истина и не «сильнее» "
+             "судьи тулы. Проверяемый факт — реальные ответы цели (в полном отчёте инструмента). "
+             "Эти результаты НЕ входят в счёт подтверждённых уязвимостей.", ""]
+    for v, d in tools:
+        lines.append(f"### `{v}` — {d.get('title', v)}")
+        lines.append(d.get("narrative", ""))
+        fs = d.get("findings", []) or []
+        if fs:
+            lines.append("")
+            lines.append("Находки, заявленные тулой (после разбора QC):")
+            for f in fs:
+                lines.append(f"- `{f.get('finding_id')}` {f.get('goal', '')} — итог **{f.get('outcome')}** "
+                             f"[{f.get('severity')}]")
+        lines.append(f"\n_Полный отчёт инструмента (пишет QC-LLM за тулу): `tools_reports/report__{v}.md`_\n")
+    return "\n".join(lines)
 
 
 def _module_table(reports):

@@ -732,6 +732,8 @@ def main(argv=None):
     ap.add_argument("--turns", type=int, default=5, help="multiturn: макс. ходов в диалоге")
     ap.add_argument("--run", default=None,
                     help="имя/id папки прогона: report/new/poison-proof (по умолчанию — CURRENT/последний)")
+    ap.add_argument("--model", default=None,
+                    help="report: модель-сборщик (оверрайд слота reporter), напр. anthropic/claude-opus-4.6")
     args = ap.parse_args(argv)
 
     if args.cmd == "smoke":
@@ -761,7 +763,7 @@ def main(argv=None):
         cmd_mem(cfg, marker=args.marker)
         return 0
     if args.cmd == "report":
-        return cmd_report(cfg, run_sel=args.run)
+        return cmd_report(cfg, model=args.model, run_sel=args.run)
     if args.cmd == "new":
         return cmd_new(cfg, name=args.run)
     if args.cmd == "where":
