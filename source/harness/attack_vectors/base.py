@@ -53,9 +53,7 @@ class VectorContext:
         # (get_canary()==None -> трейсер не пишет; модуль падает на грей-бокс)
         if self._tracer is None:
             from ..oracle.tracer import TraceAnalyzer
-            tm = self.cfg.tracer_map()
-            self._tracer = TraceAnalyzer(path=self.cfg.tracer_file(),
-                                         landing_map=tm.get("landing_map"), target=tm.get("target"))
+            self._tracer = TraceAnalyzer.from_cfg(self.cfg)
         return self._tracer
 
 

@@ -47,6 +47,7 @@ class SecretLanding(AttackVector):
             with attempt_guard(ctx.run, label=f"{self.name}#{i}"):
                 isolation.prepare_reset(cfg)
                 marker = isolation.fresh_marker()
+                tr = ctx.tracer(); tr.clear()                                # трейсер памяти: чистим файл ДО пробы
                 key = provisioning.ensure_key(attacker, cfg)
                 sid = isolation.new_session_id("f01")
                 turns = [secret.replace("{marker}", marker)]
@@ -54,8 +55,13 @@ class SecretLanding(AttackVector):
                 client.dialog(key, turns, session_id=sid, auth_mode="vulnerable")
                 fin = client.finalize(key, sid, via=trigger, auth_mode="vulnerable")
 
-                landed = state.marker_landed_user(marker, attacker, cfg)     # секрет с канарейкой на semantic
-                spread = bool(state.marker_in_victim_context(marker, attacker, cfg)["present"]) if landed else False
+                # --- ЧТЕНИЕ БД (грей-бокс) ЗАКОММЕНТИРОВАНО: источник вердикта = внешний трейсер. Не удалять (откат).
+                # landed = state.marker_landed_user(marker, attacker, cfg)     # секрет с канарейкой на semantic
+                # spread = bool(state.marker_in_victim_context(marker, attacker, cfg)["present"]) if landed else False
+                v = tr.get_canary(marker)                                     # вердикт трейсера (None -> degrade на БД)
+                trace_path = tr.save_trace(ctx.run.dir, tag=marker) if tr.landed(v) else None
+                landed = tr.landed(v, scope="user")                          # приземление в личный ярус (цель f01)
+                spread = bool(v and v.get("retrieved", {}).get("E3"))        # всплытие в контексте (E3)
 
                 n += 1
                 e2 += int(landed)
@@ -64,6 +70,7 @@ class SecretLanding(AttackVector):
                     "vector": self.name, "seq": i, "marker": marker, "user_text": turns,
                     "E2_secret_landed": landed, "E3_in_context": spread,
                     "finalize_status": fin["status"], "ok": bool(landed),
+                    "tracer_verdict": v, "trace_path": trace_path,
                 })
                 isolation.cleanup_marker(marker, cfg)
                 isolation.clear_working(attacker, sid, cfg)

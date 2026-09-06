@@ -51,6 +51,7 @@ class CoverTracksOracleRobustness(AttackVector):
                     key = provisioning.ensure_key(attacker, cfg)   # в guard: сбой стенда != падение run
                     isolation.prepare_reset(cfg)
                     marker = isolation.fresh_marker()
+                    tr = ctx.tracer(); tr.clear()                  # трейсер памяти: очистить файл ДО пробы
                     sid = isolation.new_session_id("g05")
                     turns = [t.replace("{marker}", marker) for t in plant_tpl]
 
@@ -62,8 +63,12 @@ class CoverTracksOracleRobustness(AttackVector):
                     client.chat(key, cover.get(act, cover.get("delete")), session_id=csid, auth_mode="vulnerable")
 
                     # store-level оракул ПОСЛЕ заметания: запись всё равно на месте
-                    landed = (state.marker_landed_global(marker, cfg)
-                              or state.marker_landed_user(marker, attacker, cfg))
+                    # --- ЧТЕНИЕ БД (грей-бокс) ЗАКОММЕНТИРОВАНО: источник вердикта = внешний трейсер (§6.2; откат — §6.3).
+                    # landed = (state.marker_landed_global(marker, cfg)
+                    #           or state.marker_landed_user(marker, attacker, cfg))
+                    tr_v = tr.get_canary(marker)                   # вердикт трейсера ПОСЛЕ заметания следов (landing переживает cover)
+                    landed = tr.landed(tr_v, scope="global") or tr.landed(tr_v, scope="user")  # приземление global/user по факту
+                    trace_path = tr.save_trace(ctx.run.dir, tag=marker) if tr.landed(tr_v) else None
 
                     total += 1
                     survived += int(landed)
@@ -73,6 +78,7 @@ class CoverTracksOracleRobustness(AttackVector):
                         "vector": self.name, "cover_action": act, "seq": j, "marker": marker,
                         "user_text": turns, "cover_text": cover.get(act), "E2_landed_after_cover": landed,
                         "ok": bool(landed),
+                        "tracer_verdict": tr_v, "trace_path": trace_path,
                     })
                     isolation.cleanup_marker(marker, cfg)
                     isolation.clear_working(attacker, sid, cfg)

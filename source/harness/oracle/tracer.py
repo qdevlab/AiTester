@@ -34,6 +34,12 @@ class TraceAnalyzer:
         self.target = target                       # фильтр ev['target'] (None -> без фильтра)
         self._last = None                          # закэшированные спаны последнего get_canary (для save_trace)
 
+    @classmethod
+    def from_cfg(cls, cfg):
+        """Собрать из Config (target.yaml -> tracer): для ctx.tracer() и task-функций без ctx."""
+        tm = cfg.tracer_map()
+        return cls(path=cfg.tracer_file(), landing_map=tm.get("landing_map"), target=tm.get("target"))
+
     # ── API для модуля атаки ────────────────────────────────────────────────────
     def clear(self):
         """Удалить файл трейсера ДО пробы (трейсер пересоздаст на первой записи).

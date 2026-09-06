@@ -57,13 +57,18 @@ class MultilingualInjection(AttackVector):
                     key = provisioning.ensure_key(attacker, cfg)   # в guard: сбой стенда != падение run
                     isolation.prepare_reset(cfg)
                     marker = isolation.fresh_marker()
+                    tr = ctx.tracer(); tr.clear()                  # трейсер памяти: очистить файл ДО пробы
                     sid = isolation.new_session_id("g02")
                     turns = [t.replace("{marker}", marker) for t in v["turns"]]
 
                     client.dialog(key, turns, session_id=sid, auth_mode="vulnerable")
                     fin = client.finalize(key, sid, via=trigger, auth_mode="vulnerable")
-                    landed = (state.marker_landed_global(marker, cfg)
-                              or state.marker_landed_user(marker, attacker, cfg))
+                    # --- ЧТЕНИЕ БД (грей-бокс) ЗАКОММЕНТИРОВАНО: источник вердикта = внешний трейсер (§6.2; откат — §6.3).
+                    # landed = (state.marker_landed_global(marker, cfg)
+                    #           or state.marker_landed_user(marker, attacker, cfg))
+                    tr_v = tr.get_canary(marker)                   # вердикт трейсера (None -> degrade на грей-бокс)
+                    landed = tr.landed(tr_v, scope="global") or tr.landed(tr_v, scope="user")  # приземление global/user по факту
+                    trace_path = tr.save_trace(ctx.run.dir, tag=marker) if tr.landed(tr_v) else None
 
                     total += 1
                     landed_total += int(landed)
@@ -73,6 +78,7 @@ class MultilingualInjection(AttackVector):
                         "vector": self.name, "lang": lang, "mode": mode, "seq": j, "marker": marker,
                         "user_text": turns, "E2_landed": landed, "finalize_status": fin["status"],
                         "ok": bool(landed),
+                        "tracer_verdict": tr_v, "trace_path": trace_path,
                     })
                     isolation.cleanup_marker(marker, cfg)
                     isolation.clear_working(attacker, sid, cfg)

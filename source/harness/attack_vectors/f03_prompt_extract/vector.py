@@ -52,12 +52,17 @@ class SystemPromptExtractionSpread(AttackVector):
                 key_v = provisioning.ensure_key(victim, cfg)
                 isolation.prepare_reset(cfg)
                 marker = isolation.fresh_marker()
+                tr = ctx.tracer(); tr.clear()                                # трейсер памяти: чистим файл ДО пробы
                 sid = isolation.new_session_id("f03")
                 turns = [t.replace("{marker}", marker) for t in plant_tpl]
 
                 client.dialog(key_a, turns, session_id=sid, auth_mode="vulnerable")
                 fin = client.finalize(key_a, sid, via=trigger, auth_mode="vulnerable")
-                g_land = state.marker_landed_global(marker, cfg)             # precondition (state)
+                # --- ЧТЕНИЕ БД (грей-бокс) ЗАКОММЕНТИРОВАНО: источник вердикта = внешний трейсер. Не удалять (откат).
+                # g_land = state.marker_landed_global(marker, cfg)             # precondition (state)
+                v = tr.get_canary(marker)                                     # вердикт трейсера (None -> degrade на БД)
+                trace_path = tr.save_trace(ctx.run.dir, tag=marker) if tr.landed(v) else None
+                g_land = tr.landed(v, scope="global")                        # приземление на общий ярус (цель f03)
 
                 rp = reveal[i % len(reveal)]                                 # жертва просит раскрыть промпт
                 vsid = isolation.new_session_id("f03-rd")
@@ -71,6 +76,7 @@ class SystemPromptExtractionSpread(AttackVector):
                     "vector": self.name, "seq": i, "marker": marker, "user_text": turns, "victim": victim,
                     "reveal_prompt": rp, "E2_global": g_land, "E3_alt_marker_in_victim_reply": leaked,
                     "finalize_status": fin["status"], "reply_excerpt": (reply or "")[:200], "ok": leaked,
+                    "tracer_verdict": v, "trace_path": trace_path,
                 })
                 isolation.cleanup_marker(marker, cfg)
                 isolation.clear_working(attacker, sid, cfg)

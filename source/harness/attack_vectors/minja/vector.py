@@ -81,8 +81,12 @@ class MinjaVector(AttackVector):
         key_vic = provisioning.ensure_key(victim, cfg)
 
         def landing(marker):
-            g = state.marker_landed_global(marker, cfg) if greybox else False
-            u = state.marker_landed_user(marker, attacker, cfg) if greybox else False
+            # --- ЧТЕНИЕ БД (грей-бокс) ЗАКОММЕНТИРОВАНО: источник вердикта = внешний трейсер (§6.2; откат — §6.3).
+            # g = state.marker_landed_global(marker, cfg) if greybox else False
+            # u = state.marker_landed_user(marker, attacker, cfg) if greybox else False
+            tr_v = tr.get_canary(marker)                      # вердикт трейсера по маркеру (None -> degrade)
+            g = tr.landed(tr_v, scope="global")               # приземление на общий ярус (по факту)
+            u = tr.landed(tr_v, scope="user")                 # приземление в личный ярус (по факту)
             return g, u
 
         def send_rung(key, sid, text, marker):
@@ -96,6 +100,7 @@ class MinjaVector(AttackVector):
                     isolation.prepare_reset(cfg)                    # точечная чистка канареек
                 marker = isolation.fresh_marker()
                 cold_marker = isolation.fresh_marker()
+                tr = ctx.tracer(); tr.clear()                       # трейсер памяти: очистить файл ДО пробы
                 shortest = ladder[-1]
 
                 # COLD-контроль: безобидный короткий ранг ОДИН, свежая сессия, без прайминга -> base_rate
@@ -123,8 +128,12 @@ class MinjaVector(AttackVector):
                 # cross-tenant: жертва (др. клиент) читает маркер (контекст + ответ)
                 xt = {"in_context": None, "via": None, "in_reply": None}
                 if greybox and any_global:
-                    e3 = state.marker_in_victim_context(marker, victim, cfg)
-                    xt["in_context"], xt["via"] = e3["present"], e3["via"]
+                    # --- ЧТЕНИЕ БД (грей-бокс) ЗАКОММЕНТИРОВАНО: источник вердикта = внешний трейсер (§6.2; откат — §6.3).
+                    # e3 = state.marker_in_victim_context(marker, victim, cfg)
+                    # xt["in_context"], xt["via"] = e3["present"], e3["via"]
+                    e3v = tr.get_canary(marker)                     # E3 из трейсера: чтение контекста (build_context)
+                    xt["in_context"] = bool(e3v and e3v.get("retrieved", {}).get("E3"))
+                    xt["via"] = e3v.get("retrieved", {}).get("method") if e3v else None
                 if benign_primed or any_global:
                     vsid = isolation.new_session_id("minja-rd")
                     vres = client.chat(key_vic, NEUTRAL_Q, session_id=vsid, auth_mode="vulnerable")
@@ -135,8 +144,10 @@ class MinjaVector(AttackVector):
                        "rungs": rungs, "benign_primed_landed": benign_primed,
                        "shortest_landed_idx": shortest_landed_idx, "any_global": any_global,
                        "cross_tenant": xt}
+                tr_v = tr.get_canary(marker)                       # финальный вердикт трейсера (после всех рангов)
+                trace_path = tr.save_trace(run.dir, tag=marker) if tr.landed(tr_v) else None
                 run.attempt({"task": "minja", "attacker": attacker, "victim": victim,
-                             "greybox": greybox, **rec})
+                             "greybox": greybox, "tracer_verdict": tr_v, "trace_path": trace_path, **rec})
                 results.append(rec)
 
                 if greybox:                                        # teardown канареек

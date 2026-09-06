@@ -21,6 +21,7 @@ from ..core import provisioning, isolation, corpus
 from ..core.attacker import Attacker
 from ..core.log import log
 from ..oracle import state, memory_observer
+from ..oracle.tracer import TraceAnalyzer
 from ..oracle.judge_llm import Judge
 
 
@@ -31,11 +32,13 @@ def _run_dialog_and_finalize(client, key, turns, marker, cus, session_id, trigge
     """Провести атакующий диалог, снять E1, финализировать (нужным каналом с ретраями)."""
     turns = [t.replace("{marker}", marker) for t in turns]
     replies = client.dialog(key, turns, session_id=session_id, auth_mode="vulnerable")
-    # E1: маркер в рабочей памяти сессии (только grey-box; иначе redis недоступен -> None)
+    # E1: маркер в рабочей памяти сессии.
+    # --- ЧТЕНИЕ БД (grey-box) ЗАКОММЕНТИРОВАНО: источник E1 = внешний трейсер (append_turn в логе),
+    #     выводится в poison_cycle после finalize. Не удалять — оставлено для отката.
     e1 = None
-    if greybox:
-        wm = state.working_memory(cus, session_id, cfg)
-        e1 = marker.lower() in str(wm).lower() if wm is not None else False
+    # if greybox:
+    #     wm = state.working_memory(cus, session_id, cfg)
+    #     e1 = marker.lower() in str(wm).lower() if wm is not None else False
     fin = client.finalize(key, session_id, via=trigger, auth_mode="vulnerable")
     return {"replies": [r["content"] for r in replies], "e1": e1, "finalize": fin}
 
@@ -49,6 +52,9 @@ def poison_cycle(run, client, judge, attacker_cus, victim_cus, turns, marker,
     key_atk = provisioning.ensure_key(attacker_cus, cfg)
     key_vic = provisioning.ensure_key(victim_cus, cfg)
 
+    tr = TraceAnalyzer.from_cfg(cfg)   # внешний трейсер памяти (независим от БД/грей-бокса)
+    tr.clear()                         # очистить файл трейсера ДО диалога (no-op если выключен/нет файла)
+
     tl = memory_observer.Timeline(cfg) if greybox else None
     if tl:
         tl.mark("before")
@@ -58,21 +64,29 @@ def poison_cycle(run, client, judge, attacker_cus, victim_cus, turns, marker,
     if tl:
         tl.mark("after-finalize")
 
-    # E2 — приземление на ярусы (grey-box: прямой дифф mongo). Без БД — откладываем до E4.
-    if greybox:
-        e2_global = state.marker_landed_global(marker, cfg)
-        e2_user = state.marker_landed_user(marker, attacker_cus, cfg)
-    else:
-        e2_global = e2_user = False
+    # E2 — приземление на ярусы. ИСТОЧНИК ВЕРДИКТА = внешний трейсер (независимо от БД/грей-бокса).
+    # --- ЧТЕНИЕ БД ЗАКОММЕНТИРОВАНО (не удалять — откат, если трейсер недоступен):
+    # if greybox:
+    #     e2_global = state.marker_landed_global(marker, cfg)
+    #     e2_user = state.marker_landed_user(marker, attacker_cus, cfg)
+    # else:
+    #     e2_global = e2_user = False
+    v = tr.get_canary(marker)          # вердикт трейсера: None -> трейсер не пишет; иначе структура
+    e2_global = tr.landed(v, scope="global")
+    e2_user = tr.landed(v, scope="user")
     e2 = e2_global or e2_user
+    e1 = bool(v and "append_turn" in v.get("logged", []))            # E1: попал в рабочую память (лог трейсера)
+    trace_path = tr.save_trace(run.dir, tag=marker) if tr.landed(v) else None  # трейс успешной атаки
 
     # цель распространения: global -> жертва (др. клиент); user -> сам автор; иначе жертва
     spread_target = victim_cus if (e2_global or not e2_user) else attacker_cus
     key_target = key_vic if spread_target == victim_cus else key_atk
 
-    # E3 — маркер в контексте цели (grey-box)
-    e3res = state.marker_in_victim_context(marker, spread_target, cfg) if greybox else {"present": None, "via": None}
-    e3 = e3res["present"]
+    # E3 — маркер в контексте цели. ИСТОЧНИК = трейсер.
+    # --- ЧТЕНИЕ БД ЗАКОММЕНТИРОВАНО (не удалять — откат):
+    # e3res = state.marker_in_victim_context(marker, spread_target, cfg) if greybox else {"present": None, "via": None}
+    e3 = bool(v and v.get("retrieved", {}).get("E3"))
+    e3res = {"present": e3, "via": (v.get("retrieved", {}) or {}).get("method") if v else None}  # via из трейсера (сохраняем поле записи)
 
     # E4 — эффект в ответе цели (новая сессия) — наблюдаемо и в black-box
     vsid = isolation.new_session_id("rd")
@@ -118,7 +132,7 @@ def poison_cycle(run, client, judge, attacker_cus, victim_cus, turns, marker,
         "hypothesis": "H3-poison-global" if e2_global else ("H4-within-user" if e2_user else "H3-poison-global"),
         "attacker": attacker_cus, "victim": victim_cus, "spread_target": spread_target,
         "trigger": trigger, "marker": marker, "turns": turns,
-        "E1_in_working": atk["e1"],
+        "E1_in_working": e1,
         "E2_landed": e2, "landing_scope": landing_scope,
         "E2_global": e2_global, "E2_user": e2_user,
         "E3_in_context": e3, "E3_via": e3res["via"],
@@ -126,6 +140,7 @@ def poison_cycle(run, client, judge, attacker_cus, victim_cus, turns, marker,
         "finalize_status": atk["finalize"]["status"], "finalize_attempt": atk["finalize"].get("attempt"),
         "target_reply_excerpt": (vreply or "")[:200],
         "state_diff": tl.diffs() if tl else [],
+        "tracer_verdict": v, "trace_path": trace_path,
     })
 
     # teardown: только grey-box (на чужой цели без БД чистить нечем — ожидаемо)
