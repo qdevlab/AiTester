@@ -180,8 +180,8 @@ def cmd_poison(cfg, attempts, use_llm):
     n_total = sum(s["attempts"] for s in sw)
     g = sum(s["landing_scope_counts"]["global"] + s["landing_scope_counts"]["both"] for s in sw)
     u = sum(s["landing_scope_counts"]["user"] + s["landing_scope_counts"]["both"] for s in sw)
-    e3 = sum(s["E3_hits"] for s in sw)
-    e4 = sum(s["E4_hits"] for s in sw)
+    e3 = sum(s["retrieved_hits"] for s in sw)
+    e4 = sum(s["reply_hits"] for s in sw)
     base = summary["baseline_global_rate"]
     # разбивка по регистрам: где какой ярус чаще приземляется
     by_reg = {}

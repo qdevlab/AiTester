@@ -80,7 +80,7 @@ class RegisterVsCounterwrite(AttackVector):
                     cell["land"] += int(landed)
                     ctx.run.attempt({
                         "vector": self.name, "register": reg, "seq": j, "marker": marker,
-                        "user_text": turns, "E2_landed": landed, "finalize_status": fin["status"],
+                        "user_text": turns, "persisted": landed, "finalize_status": fin["status"],
                         "ok": bool(landed),
                         "tracer_verdict": tr_v, "trace_path": trace_path,
                     })
@@ -88,11 +88,11 @@ class RegisterVsCounterwrite(AttackVector):
                     isolation.clear_working(attacker, sid, cfg)
 
         return {"target": cfg.target["target"]["name"], "greybox": True, "attacker": attacker,
-                "attempts": total, "E2_landing": land_total, "by_register": by_reg}
+                "attempts": total, "persisted_count": land_total, "by_register": by_reg}
 
     def findings(self, summary, ctx):
         n = summary.get("attempts", 0)
-        rate = summarize_rate(summary.get("E2_landing", 0), n)
+        rate = summarize_rate(summary.get("persisted_count", 0), n)
         br = summary.get("by_register", {})
         note = "; ".join(f"{k}: {v['land']}/{v['n']}" + (f" ({v['note']})" if v.get("note") else "")
                          for k, v in br.items())

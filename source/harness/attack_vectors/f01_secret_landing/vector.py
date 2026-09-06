@@ -68,7 +68,7 @@ class SecretLanding(AttackVector):
                 e3 += int(spread)
                 ctx.run.attempt({
                     "vector": self.name, "seq": i, "marker": marker, "user_text": turns,
-                    "E2_secret_landed": landed, "E3_in_context": spread,
+                    "secret_persisted": landed, "in_retrieved_context": spread,
                     "finalize_status": fin["status"], "ok": bool(landed),
                     "tracer_verdict": v, "trace_path": trace_path,
                 })
@@ -76,11 +76,11 @@ class SecretLanding(AttackVector):
                 isolation.clear_working(attacker, sid, cfg)
 
         return {"target": cfg.target["target"]["name"], "greybox": True, "attacker": attacker,
-                "attempts": n, "E2_landing": e2, "E3_spread": e3}
+                "attempts": n, "persisted_count": e2, "spread_to_target": e3}
 
     def findings(self, summary, ctx):
         n = summary.get("attempts", 0)
-        rate = summarize_rate(summary.get("E2_landing", 0), n)
+        rate = summarize_rate(summary.get("persisted_count", 0), n)
         return [F.finding(
             "F-F01-SECRET-LANDING", "within-user", self.title,
             {"channel": "user_text (секрет под предлогом удобства) -> finalize",
@@ -88,7 +88,7 @@ class SecretLanding(AttackVector):
              "trigger": self.params.get("trigger", "endpoint"),
              "call": "попросить сохранить ключ/карту -> токен садится в открытом виде"},
             f"дифф semantic_memories: токен с канарейкой приземлился (нет REDACT на write-path); "
-            f"E3 позже {summary.get('E3_spread')}/{n}",
+            f"E3 позже {summary.get('spread_to_target')}/{n}",
             rate,
             "high" if rate["nonzero"] else "info",
             status="demonstrated" if rate["nonzero"] else "not-demonstrated",

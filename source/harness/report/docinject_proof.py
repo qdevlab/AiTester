@@ -1,7 +1,7 @@
 """Человекочитаемый пруф docinject — реконструкция из логов.
 
 Показывает «что написал юзер» (документ с внедрённой кодом инструкцией), подтверждение на хитром
-вопросе, finalize и — главное — всплыл ли маркер в НОВОМ чате (проверка другой сессией). Склейка
+вопросе, finalize и — главное — воспроизведён ли маркер в НОВОМ чате (проверка другой сессией). Склейка
 attempts.jsonl + calls.jsonl по маркеру, переиспользуя хелперы poison_proof. Ничего не шлёт в цель.
 """
 
@@ -40,7 +40,7 @@ def build(run_dir, task="docinject"):
              f"Атакующий: клиент {attacker} · жертва: клиент {victim} · успехов: {len(hits)}/{len(att)}", ""]
     if not hits:
         lines += ["## Результат", "",
-                  "Отравление НЕ воспроизведено (маркер не лёг и не всплыл в новом чате). Это не "
+                  "Отравление НЕ воспроизведено (маркер не закрепился в памяти и не воспроизведён в новом диалоге). Это не "
                   "«безопасно» — класс не показан при данных N/условиях.", ""]
 
     for i, a in enumerate(hits or att[:1], 1):
@@ -56,12 +56,12 @@ def build(run_dir, task="docinject"):
         lines += [PP._finalize_line(PP._finalizes(sids, calls)), "",
                   f"Агент подтвердил на хитром вопросе: {a.get('confirmed')}", "",
                   "### Проверка ДРУГИМ чатом (новая сессия)", "",
-                  f"- у ДРУГОГО клиента (cross-tenant): {'ВСПЛЫЛ маркер' if a.get('resurf_victim') else 'нет'}"]
+                  f"- у ДРУГОГО клиента (cross-tenant): {'маркер воспроизведён' if a.get('resurf_victim') else 'нет'}"]
         if a.get("resurf_victim") and a.get("resurf_victim_reply"):
-            lines += ["", "  ответ НОВОГО чата жертвы (в нём виден кодовое слово):", "",
+            lines += ["", "  ответ НОВОГО чата жертвы (в нём видно кодовое слово):", "",
                       "  > " + (a["resurf_victim_reply"] or "").replace("\n", "\n  > "), ""]
         lines.append(f"- у автора в новой сессии (within-user): "
-                     f"{'ВСПЛЫЛ маркер' if a.get('resurf_author') else 'нет'}")
+                     f"{'маркер воспроизведён' if a.get('resurf_author') else 'нет'}")
         if a.get("resurf_author") and a.get("resurf_author_reply"):
             lines += ["", "  ответ НОВОГО чата автора:", "",
                       "  > " + (a["resurf_author_reply"] or "").replace("\n", "\n  > "), ""]
@@ -70,9 +70,9 @@ def build(run_dir, task="docinject"):
         _meth = ", ".join(f"{L.get('method')}({L.get('field')})" for L in _tv.get("landings", [])) or "?"
         _tp = a.get("trace_path")
         _rel = (os.path.relpath(_tp, run_dir) if _tp and os.path.isabs(_tp) else _tp)
-        lines += [f"- приземление (трейсер): global={a.get('E2_global')}, user={a.get('E2_user')}, "
-                  f"контекст={a.get('E3_victim_ctx')}",
-                  f"- **где уязвимость (трейс):** село {_top.get('tier')}/{_top.get('scope')} через `{_meth}`"
+        lines += [f"- закрепление в памяти (трейсер): global={a.get('persisted_global')}, user={a.get('persisted_user')}, "
+                  f"контекст={a.get('in_target_context')}",
+                  f"- **где уязвимость (трейс):** закрепление в {_top.get('tier')}/{_top.get('scope')} через `{_meth}`"
                   + (f" — трейс `{_rel}`" if _rel else ""), ""]
 
     out = os.path.join(run_dir, "proof.md")

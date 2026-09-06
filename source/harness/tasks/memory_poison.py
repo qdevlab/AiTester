@@ -133,11 +133,11 @@ def poison_cycle(run, client, judge, attacker_cus, victim_cus, turns, marker,
         "hypothesis": "H3-poison-global" if e2_global else ("H4-within-user" if e2_user else "H3-poison-global"),
         "attacker": attacker_cus, "victim": victim_cus, "spread_target": spread_target,
         "trigger": trigger, "marker": marker, "turns": turns,
-        "E1_in_working": e1,
-        "E2_landed": e2, "landing_scope": landing_scope,
-        "E2_global": e2_global, "E2_user": e2_user,
-        "E3_in_context": e3, "E3_via": e3res["via"],
-        "E4_marker_in_reply": e4_marker, "E4_judge": judged, "E4_rubric": rubric,
+        "in_working_memory": e1,
+        "persisted": e2, "landing_scope": landing_scope,
+        "persisted_global": e2_global, "persisted_user": e2_user,
+        "in_retrieved_context": e3, "context_channel": e3res["via"],
+        "marker_in_reply": e4_marker, "reply_influence": judged, "reply_rubric": rubric,
         "finalize_status": atk["finalize"]["status"], "finalize_attempt": atk["finalize"].get("attempt"),
         "target_reply_excerpt": (vreply or "")[:200],
         "state_diff": tl.diffs() if tl else [],
@@ -200,24 +200,24 @@ def landing_sweep(run, client, judge, dialog_specs, marker_fn, attacker_cus, vic
             rec = poison_cycle(run, client, judge, attacker_cus, victim_cus, turns, marker,
                                landing_tier=landing_tier, trigger=trigger, cfg=cfg,
                                clean_reply=clean_reply, greybox=greybox)
-            e1_hits += int(bool(rec["E1_in_working"]))
-            e2_hits += int(bool(rec["E2_landed"]))
-            e3_hits += int(bool(rec["E3_in_context"]))
-            e4_hits += int(bool(rec["E4_marker_in_reply"]))
+            e1_hits += int(bool(rec["in_working_memory"]))
+            e2_hits += int(bool(rec["persisted"]))
+            e3_hits += int(bool(rec["in_retrieved_context"]))
+            e4_hits += int(bool(rec["marker_in_reply"]))
             scopes[rec["landing_scope"]] += 1
-            log(f"[{a + 1}/{attempts_per_dialog}] E1={rec['E1_in_working']} E2={rec['E2_landed']} "
-                f"scope={rec['landing_scope']} E3={rec['E3_in_context']} E4={rec['E4_marker_in_reply']}", sub=True)
+            log(f"[{a + 1}/{attempts_per_dialog}] E1={rec['in_working_memory']} E2={rec['persisted']} "
+                f"scope={rec['landing_scope']} E3={rec['in_retrieved_context']} E4={rec['marker_in_reply']}", sub=True)
         n = attempts_per_dialog
         results.append({
             "dialog_index": di, "register": register, "turns": turns, "attempts": n,
-            "E1_hits": e1_hits, "E2_hits": e2_hits, "E3_hits": e3_hits, "E4_hits": e4_hits,
-            "E1_rate": round(e1_hits / n, 3),
-            "E2_landing_rate": round(e2_hits / n, 3),
+            "working_memory_hits": e1_hits, "persisted_hits": e2_hits, "retrieved_hits": e3_hits, "reply_hits": e4_hits,
+            "working_memory_rate": round(e1_hits / n, 3),
+            "persisted_rate": round(e2_hits / n, 3),
             "landing_scope_counts": scopes,
             "global_rate": round((scopes["global"] + scopes["both"]) / n, 3),  # как общее (cross-tenant)
             "user_rate": round((scopes["user"] + scopes["both"]) / n, 3),      # как личное (within-user)
-            "E3_spread_rate": round(e3_hits / n, 3),
-            "E4_behavior_rate": round(e4_hits / n, 3),
+            "spread_rate": round(e3_hits / n, 3),
+            "behavior_influenced_rate": round(e4_hits / n, 3),
         })
     return results
 

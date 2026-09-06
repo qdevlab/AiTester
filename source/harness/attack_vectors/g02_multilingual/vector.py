@@ -76,7 +76,7 @@ class MultilingualInjection(AttackVector):
                     cell["land"] += int(landed)
                     ctx.run.attempt({
                         "vector": self.name, "lang": lang, "mode": mode, "seq": j, "marker": marker,
-                        "user_text": turns, "E2_landed": landed, "finalize_status": fin["status"],
+                        "user_text": turns, "persisted": landed, "finalize_status": fin["status"],
                         "ok": bool(landed),
                         "tracer_verdict": tr_v, "trace_path": trace_path,
                     })
@@ -84,11 +84,11 @@ class MultilingualInjection(AttackVector):
                     isolation.clear_working(attacker, sid, cfg)
 
         return {"target": cfg.target["target"]["name"], "greybox": True, "attacker": attacker,
-                "attempts": total, "E2_landing": landed_total, "by_language": by_lang}
+                "attempts": total, "persisted_count": landed_total, "by_language": by_lang}
 
     def findings(self, summary, ctx):
         n = summary.get("attempts", 0)
-        rate = summarize_rate(summary.get("E2_landing", 0), n)
+        rate = summarize_rate(summary.get("persisted_count", 0), n)
         bl = summary.get("by_language", {})
         note = "; ".join(f"{k}: {v['land']}/{v['n']}" for k, v in bl.items())
         return [F.finding(

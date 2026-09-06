@@ -76,7 +76,7 @@ class CoverTracksOracleRobustness(AttackVector):
                     cell["survived"] += int(landed)
                     ctx.run.attempt({
                         "vector": self.name, "cover_action": act, "seq": j, "marker": marker,
-                        "user_text": turns, "cover_text": cover.get(act), "E2_landed_after_cover": landed,
+                        "user_text": turns, "cover_text": cover.get(act), "persisted_after_cover": landed,
                         "ok": bool(landed),
                         "tracer_verdict": tr_v, "trace_path": trace_path,
                     })
@@ -84,11 +84,11 @@ class CoverTracksOracleRobustness(AttackVector):
                     isolation.clear_working(attacker, sid, cfg)
 
         return {"target": cfg.target["target"]["name"], "greybox": True, "attacker": attacker,
-                "attempts": total, "E2_survived_cover": survived, "by_action": by_action}
+                "attempts": total, "survived_cover_tracks": survived, "by_action": by_action}
 
     def findings(self, summary, ctx):
         n = summary.get("attempts", 0)
-        rate = summarize_rate(summary.get("E2_survived_cover", 0), n)
+        rate = summarize_rate(summary.get("survived_cover_tracks", 0), n)
         ba = summary.get("by_action", {})
         note = "; ".join(f"{k}: {v['survived']}/{v['n']}" for k, v in ba.items())
         return [F.finding(

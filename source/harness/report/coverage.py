@@ -20,7 +20,7 @@ def build(run):
         cell["attempts"] += 1
         leak = r.get("leak")
         if leak is None:
-            leak = bool(r.get("E2_landed"))
+            leak = bool(r.get("persisted"))
         cell["leaks"] += int(bool(leak))
     matrix = []
     for (task, channel, hyp, mode), cell in sorted(agg.items()):
