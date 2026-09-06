@@ -4,7 +4,7 @@
 его целиком, и ты восстановишь весь контекст: что это, что сделано, как устроено, как продолжить.
 Дата актуальности: **2026-09-04**.
 
-> **Статус (2026-09-06).** Это исторический хэндофф прототипа-предшественника **genai-harness**. Актуальный проект — **`aitest_cui`** (`/home/dev/aitest_cui`): модульные векторы `attack_vectors/` (грамматика `a-<name>`, флаг `--report`), стенд **genai-cui** на портах 9xxx (agent 9600, data 9200, keycloak 9180, redis 16379, mongo 37017). Актуальные точки входа: `README.md`, `docs/ARCHITECTURE.md`, `docs/ATTACK_VECTORS.md`; последние находки — `output/runs/bigtest_2026-09-05/VULN_REPORT.md` (13 подтверждённых: 3 critical, 9 high, 1 medium). Ниже — исходный контекст genai-harness как история.
+> **Статус (2026-09-06).** Это исторический хэндофф прототипа-предшественника **genai-harness**. Актуальный проект — **`aitest_cui`** (`/home/dev/aitest_cui`): модульные векторы `attack_vectors/` (грамматика `a-<name>`, флаг `--report`), стенд **genai-cui** на портах 9xxx (agent 9600, data 9200, keycloak 9180, redis 16379, mongo 37017). Актуальные точки входа: `README.md`, `docs/ARCHITECTURE.md`, `docs/ATTACK_VECTORS.md`; прогоны и отчёты — `output/runs/<штамп>/` (авто-отчёт `REPORT_<штамп>.{md,pdf}`, авто-пруф отравления `output/POISON_PROOF.md` и per-модульные `proof.md`). Ниже — исходный контекст genai-harness как история.
 
 ---
 
@@ -37,7 +37,7 @@
 - ✅ Фаза 0+1: карта цели (`harness/NOTES.md`) + замороженный спек (`harness/config/*.yaml`).
 - ✅ Фаза 2: каркас (core + oracle), смоук проходит.
 - ✅ Таск A (BAC): 3 находки, зелёный.
-- ✅ Таск B (отравление): 2 находки (global + within-user), E1→E4.
+- ✅ Таск B (отравление): 2 находки (global + within-user), продольно по стадиям памяти.
 - ✅ Ширина: сравнение атакующих моделей, полная матрица целевых моделей (6), связка A×B
   (negative), переносимость документирована.
 - ✅ Документация + 2 PDF.
@@ -99,7 +99,7 @@ llama-4-maverick 0/9 = ПРОВАЛ ВОЗМОЖНОСТЕЙ (не умеет to
 attacker (LLM-мутатор), isolation (canary/reset), runlog.
 `harness/oracle/` — state (BAC + чтение памяти), fingerprints (мульти-отпечаток), memory_observer
 (диффы), judge_llm (дифф-судья).
-`harness/tasks/` — bac, memory_poison (E1→E4), chain_ab.
+`harness/tasks/` — bac, memory_poison (продольно по стадиям), chain_ab.
 `harness/recon/` — route_oracle, prompt_fuzz (black-box/non-LLM ось).
 `harness/orchestration/` — run.py (CLI), target_matrix.py.
 `harness/report/` — findings, coverage, susceptibility, stats(Уилсон).

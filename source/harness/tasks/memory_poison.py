@@ -205,8 +205,8 @@ def landing_sweep(run, client, judge, dialog_specs, marker_fn, attacker_cus, vic
             e3_hits += int(bool(rec["in_retrieved_context"]))
             e4_hits += int(bool(rec["marker_in_reply"]))
             scopes[rec["landing_scope"]] += 1
-            log(f"[{a + 1}/{attempts_per_dialog}] E1={rec['in_working_memory']} E2={rec['persisted']} "
-                f"scope={rec['landing_scope']} E3={rec['in_retrieved_context']} E4={rec['marker_in_reply']}", sub=True)
+            log(f"[{a + 1}/{attempts_per_dialog}] working={rec['in_working_memory']} stored={rec['persisted']} "
+                f"scope={rec['landing_scope']} context={rec['in_retrieved_context']} reply={rec['marker_in_reply']}", sub=True)
         n = attempts_per_dialog
         results.append({
             "dialog_index": di, "register": register, "turns": turns, "attempts": n,

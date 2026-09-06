@@ -15,7 +15,7 @@ Read-only: память не пишется, стенд не сбрасывае�
 `fingerprint_fields`, `attacker_default`). Запросы не называют жертву — ноль литералов цели.
 
 ## Параметры
-См. `params.yaml`. Override: `a05_direct_leak--attempts=8`, `a05_direct_leak--prompts=[...]`.
+См. `params.yaml`. Override: `a05_direct_leak--attempts=8`, `a05_direct_leak--prompts=<текст1>,<текст2>` (тип `list` — значения через запятую; `[...]` в примерах — плейсхолдер, не JSON).
 
 ## Запуск
 ```

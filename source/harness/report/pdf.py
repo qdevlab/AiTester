@@ -54,7 +54,8 @@ def render(md_text, pdf_path):
 
 
 if __name__ == "__main__":
-    import sys
-    src = sys.argv[1] if len(sys.argv) > 1 else "output/VULN_REPORT.md"
-    dst = sys.argv[2] if len(sys.argv) > 2 else "output/VULN_REPORT.pdf"
+    import sys, glob
+    _cands = sorted(glob.glob("output/REPORT_*.md"))          # дефолт — свежайший REPORT_<штамп>.md
+    src = sys.argv[1] if len(sys.argv) > 1 else (_cands[-1] if _cands else "output/REPORT.md")
+    dst = sys.argv[2] if len(sys.argv) > 2 else src[:-3] + ".pdf"
     print("PDF ->", render(open(src, encoding="utf-8").read(), dst))

@@ -4,8 +4,9 @@
 буквально, без гейта рассуждения. Прямой write-path из недоверенного пользовательского текста.
 
 ## Как это работает
-Канал: `user_text` (императив записи) → `finalize` → `semantic` (scope=user). Оракул:
-`marker_landed_user` (E2, дифф semantic), `marker_in_victim_context` (E3, свой лимит).
+Канал: `user_text` (императив записи) → `finalize` → `semantic` (scope=user). Вердикт: внешний
+трейсер памяти (трейс-файл) фиксирует закрепление в личный ярус (scope=user) и попадание в собранный
+контекст (retrieval). Каждая успешная проба пишет трейс в `traces/`.
 
 ## Конфиг
 Идентичность, коллекция `semantic`, finalize-триггер, лимит контекста — из `config/target.yaml`
@@ -22,5 +23,5 @@ python run.py --list
 
 ## Что кладёт в отчёт
 `report__c01_explicit_command.{json,md}`. Находка `F-C01-EXPLICIT-WRITE`, класс `within-user`,
-доля приземления + Wilson-CI. Таксономия: OWASP ASI06 / LLM01, ATLAS AML.T0051 (release 2026.08).
+доля закрепления + Wilson-CI. Таксономия: OWASP ASI06 / LLM01, ATLAS AML.T0051 (release 2026.08).
 Источник: submission `catalog/CATALOG.md` (внешний submission-каталог, вне репозитория) §TC-C01 (MPBench Explicit Command Insertion).

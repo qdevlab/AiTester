@@ -19,3 +19,5 @@ run.py a-deepteam deepteam--simulator=deepseek/deepseek-v4-flash
 `runs/<прогон>/deepteam/report__deepteam.{json,md}` (наш стандарт, драйвер) — подхватывается
 `run.py report`. Сырой risk-assessment + QC — в `runs/<прогон>/deepteam/deepteam/`.
 Находка = `demonstrated` только при независимой QC-оценке `confirmed`.
+
+> QC-вердикт — **предположение вспомогательной модели, НЕ детерминированный оракул**; находки обёрток НЕ входят в список подтверждённых детерминированных уязвимостей стенда (его дают оракульные векторы: bac/docinject/directinject/chain/a05).

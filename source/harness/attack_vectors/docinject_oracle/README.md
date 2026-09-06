@@ -5,7 +5,7 @@
 
 ## Как работает
 - **arms** = профили docinject (`payloads.yaml → docinject.profiles`).
-- **награда** из вердикта `_one()` (градуированная): `refused&не легло −0.2 · E1 +0.1 ·
+- **награда** из вердикта `_one()` (градуированная): `refused&не легло −0.2 · in_working_memory +0.1 ·
   (user|resurf_author) +0.3 · global +0.7 · resurf_victim +1.0 · confirmed +0.05` (веса —
   `docinject.reward` в конфиге, иначе дефолт).
 - **UCB1**: warmup по разу каждый arm → далее UCB по средней награде (эксплойт winners, отказные

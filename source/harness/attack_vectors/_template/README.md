@@ -3,8 +3,9 @@
 TODO: что атакует, какой вердикт даёт оракул, к каким целям применим.
 
 ## Как это работает
-TODO: канал (data-layer / agent-mediated / finalize→память / …), что шлётся, чем подтверждается
-(оракул состояния — `served_cross_cus` / дифф ярусов / отпечатки).
+TODO: канал (data-layer / agent-mediated / finalize→память / …), что шлётся, чем подтверждается:
+BAC — оракул состояния (`served_cross_cus` / отпечатки клиента);
+память — внешний трейсер (трейс-файл) + вопрос-ответ моделью в новом чате / от другого юзера (resurf).
 
 ## Конфиг
 Что берётся из `config/target.yaml` через `cfg` (адреса, идентичности, ярусы). Ноль литералов.
@@ -22,6 +23,7 @@ TODO: канал (data-layer / agent-mediated / finalize→память / …), 
 
 ## Что кладёт в отчёт
 `report__<name>.{json,md}` в папке прогона (пишет драйвер). Находки — с таксономией OWASP ASI/LLM,
-долей + Wilson-CI, статусом demonstrated/not-demonstrated.
+долей + Wilson-CI, статусом demonstrated/not-demonstrated. Для атак на память — ещё
+`traces/trace_<датавремя>_<marker>.jsonl` (трейс успешной пробы; пишет `ctx.tracer().save_trace`).
 
 > Полная инструкция автора: `docs/ATTACK_VECTORS.md`.

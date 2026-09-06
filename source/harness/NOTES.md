@@ -14,7 +14,7 @@
 ## Ярусы памяти и область видимости
 | Ярус | Коллекция (mongo `agent_memory`) | Область | Роль в тесте |
 |---|---|---|---|
-| Рабочая | redis `working:{cus}:{session}` | сессия, TTL 86400, чистится на finalize | E1 (атака легла) |
+| Рабочая | redis `working:{cus}:{session}` | сессия, TTL 86400, чистится на finalize | рабочая память (атака записана) |
 | Диалоги | `dialog_sessions` | within-client (`user_id`) | контекст того же клиента |
 | Эпизоды | `episodic_memories` | within-client | контекст того же клиента |
 | Семантика | `semantic_memories` (scope=user) | within-client, переживает сессии | H4 within-user |

@@ -22,3 +22,5 @@ run.py a-garak garak--model_type=test.Blank garak--skip_clean=true   # смоу�
 `runs/<прогон>/garak/` — наш `report__garak.{json,md}` (по схеме `attack_vector_report/1`, драйвер),
 подхватывается `run.py report`. Сырой вывод тулы + QC — в подпапке `runs/<прогон>/garak/garak/`.
 Находка = `demonstrated` только если независимая QC-оценка `confirmed` (вердикт самой тулы — отдельно).
+
+> QC-вердикт — **предположение вспомогательной модели, НЕ детерминированный оракул**; находки обёрток НЕ входят в список подтверждённых детерминированных уязвимостей стенда (его дают оракульные векторы: bac/docinject/directinject/chain/a05).

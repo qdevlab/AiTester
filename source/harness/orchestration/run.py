@@ -423,7 +423,7 @@ def cmd_report(cfg, model=None, run_sel=None, dir_path=None):
         print(f"  в папке -> {res['md']}")
         if res.get("pdf"):
             print(f"  PDF -> {res['pdf']}")
-        print(f"  общий -> {os.path.join(OUTPUT_DIR, 'VULN_REPORT.md')}")
+        print(f"  общий -> {os.path.join(OUTPUT_DIR, os.path.basename(res['md']))}")
         print(f"  источники ({len(res['sources'])}): "
               f"{', '.join(os.path.basename(s) for s in res['sources']) or '—'}")
         return 0
@@ -433,17 +433,18 @@ def cmd_report(cfg, model=None, run_sel=None, dir_path=None):
         return 1
     run = Run(rid, cfg)                              # пишем В папку прогона, не плодим report-<date>
     md, src, used = synthesize.build(run, cfg, model=model, scope_dir=run.dir)
-    run.write_text("VULN_REPORT.md", md)
-    top = os.path.join(OUTPUT_DIR, "VULN_REPORT.md")
+    md_name, pdf_name = synthesize.report_name(rid, "md"), synthesize.report_name(rid, "pdf")
+    run.write_text(md_name, md)
+    top = os.path.join(OUTPUT_DIR, md_name)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    runlog._atomic_write(top, md)                   # общая папка output/ — «последний отчёт»
+    runlog._atomic_write(top, md)                   # общая папка output/ — копия отчёта этого прогона
     print(f"Отчёт по уязвимостям ({'LLM' if used else 'fallback'}), прогон '{rid}':")
-    print(f"  в папке прогона -> {run.path('VULN_REPORT.md')}")
-    print(f"  общий (последний) -> {top}")
-    pdf_top = os.path.join(OUTPUT_DIR, "VULN_REPORT.pdf")
+    print(f"  в папке прогона -> {run.path(md_name)}")
+    print(f"  общий -> {top}")
+    pdf_top = os.path.join(OUTPUT_DIR, pdf_name)
     try:
         from ..report import pdf as pdfmod
-        pdfmod.render(md, run.path("VULN_REPORT.pdf"))
+        pdfmod.render(md, run.path(pdf_name))
         pdfmod.render(md, pdf_top)
         print(f"  PDF -> {pdf_top}")
     except Exception as e:
@@ -507,7 +508,7 @@ def _split_vector_args(argv):
     selected=None, если не было ни одного a-* (тогда старый argparse-путь для back-compat).
     a-all -> ['*']. overrides={vector:{key:val}}; 'vec--flag' без '=' -> True.
     --new -> свежая папка прогона; --run <имя>/--run=<имя> -> именованная кампания (одна папка);
-    --report -> собрать VULN_REPORT сразу после прогона (как отдельный run.py report)."""
+    --report -> собрать REPORT_<штамп> сразу после прогона (как отдельный run.py report)."""
     selected, overrides, list_mode, saw = [], {}, False, False
     run_sel, new, report = None, False, False
     i = 0
@@ -759,7 +760,7 @@ def cmd_vectors(cfg, selected, overrides, run_sel=None, new=False, report=False)
                               finished=time.strftime("%Y-%m-%d %H:%M:%S"))
     except Exception as e:
         print(f"манифест (финиш) не записан: {type(e).__name__}: {e}")
-    if report:                                            # --report -> VULN_REPORT сразу по этой папке
+    if report:                                            # --report -> REPORT_<штамп> сразу по этой папке
         print("== REPORT ==", "сборка отчёта по прогону:", parent.run_id)
         cmd_report(cfg, run_sel=parent.run_id)
     else:

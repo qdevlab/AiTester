@@ -57,6 +57,11 @@ _PROMPT = """Составь технический отчёт по резуль�
 """
 
 
+def report_name(stamp, ext):
+    """Имя файла сводного отчёта: REPORT_<штамп прогона>.<ext> (штамп = id прогона / дата-время)."""
+    return f"REPORT_{stamp}.{ext}"
+
+
 def gather_latest(exclude=("stub", "crashtest", "pinj"), scope_dir=None):
     """Свежайший report__<vector>.json по каждому вектору. -> {vector: (path, dict)}.
     scope_dir задан -> читаем ТОЛЬКО эту папку прогона (одна папка = один отчёт, без разъезда по
@@ -441,7 +446,7 @@ def _load_env_file(path):
 
 def build_for_dir(folder, cfg=None, model=None, write_pdf=True, copy_to_output=False):
     """НЕЗАВИСИМАЯ сборка отчёта из ПАПКИ, переданной АРГУМЕНТОМ (любой путь, не только output/runs/).
-    Берёт report__*.json из folder (в подпапках модулей и/или плоско), строит VULN_REPORT.{md,pdf}
+    Берёт report__*.json из folder (в подпапках модулей и/или плоско), строит REPORT_<штамп>.{md,pdf}
     ПРЯМО в folder. Для отладки отчётника отдельно от прогона:
         python -m harness.report.synthesize <папка> [--model ...] [--no-pdf] [--to-output]
     -> dict(md, pdf, sources, used_llm)."""
@@ -457,23 +462,25 @@ def build_for_dir(folder, cfg=None, model=None, write_pdf=True, copy_to_output=F
               f"прогоном; собираю по имеющимся report__*.json")
     run = Run(dir=folder, cfg=cfg)                         # пишем В переданную папку
     md, src, used = build(run, cfg, model=model, scope_dir=folder)
-    md_path = run.write_text("VULN_REPORT.md", md)
+    stamp = os.path.basename(folder.rstrip("/"))
+    md_name, pdf_name = report_name(stamp, "md"), report_name(stamp, "pdf")
+    md_path = run.write_text(md_name, md)
     pdf_path = None
     if write_pdf:
         try:
             from . import pdf as pdfmod
-            pdf_path = run.path("VULN_REPORT.pdf")
+            pdf_path = run.path(pdf_name)
             pdfmod.render(md, pdf_path)
         except Exception as e:
             print(f"PDF не собран ({type(e).__name__}: {str(e)[:120]}) — MD на месте")
             pdf_path = None
     if copy_to_output:
         os.makedirs(OUTPUT_DIR, exist_ok=True)
-        _atomic_write(os.path.join(OUTPUT_DIR, "VULN_REPORT.md"), md)
+        _atomic_write(os.path.join(OUTPUT_DIR, md_name), md)
         if pdf_path:
             try:
                 from . import pdf as pdfmod
-                pdfmod.render(md, os.path.join(OUTPUT_DIR, "VULN_REPORT.pdf"))
+                pdfmod.render(md, os.path.join(OUTPUT_DIR, pdf_name))
             except Exception:
                 pass
     return {"md": md_path, "pdf": pdf_path, "sources": src, "used_llm": used}
@@ -482,11 +489,11 @@ def build_for_dir(folder, cfg=None, model=None, write_pdf=True, copy_to_output=F
 if __name__ == "__main__":                                # независимый запуск: папка в аргументах
     import argparse
     ap = argparse.ArgumentParser(
-        description="Независимый отчётник: VULN_REPORT.{md,pdf} из папки с report__*.json.")
+        description="Независимый отчётник: REPORT_<штамп>.{md,pdf} из папки с report__*.json.")
     ap.add_argument("folder", help="папка прогона (или любая с report__*.json в подпапках/плоско)")
     ap.add_argument("--model", default=None, help="оверрайд модели-сборщика (слот reporter)")
     ap.add_argument("--no-pdf", action="store_true", help="только markdown, без PDF")
-    ap.add_argument("--to-output", action="store_true", help="плюс копия в output/VULN_REPORT.*")
+    ap.add_argument("--to-output", action="store_true", help="плюс копия в output/REPORT_<штамп>.*")
     _a = ap.parse_args()
     _res = build_for_dir(_a.folder, model=_a.model, write_pdf=not _a.no_pdf, copy_to_output=_a.to_output)
     print(f"свод ({'LLM' if _res['used_llm'] else 'fallback'}) -> {_res['md']}")

@@ -20,3 +20,5 @@ run.py a-llamator llamator--attacker=deepseek/deepseek-v4-flash
 `runs/<прогон>/llamator/report__llamator.{json,md}` (наш стандарт, драйвер) — подхватывается
 `run.py report`. Сырой вывод тулы (csv/log/xlsx) + QC — в `runs/<прогон>/llamator/llamator/`.
 Находка = `demonstrated` только при независимой QC-оценке `confirmed` (тула шумит — QC бракует ложные).
+
+> QC-вердикт — **предположение вспомогательной модели, НЕ детерминированный оракул**; находки обёрток НЕ входят в список подтверждённых детерминированных уязвимостей стенда (его дают оракульные векторы: bac/docinject/directinject/chain/a05).

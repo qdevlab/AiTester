@@ -19,7 +19,8 @@
 4. **Изоляция прогонов.** Персистентная память переживает сессии; без уборки один прогон отравит
    следующий. Уникальная сессия + teardown канареек + опция полного сброса памяти.
 5. **Темпоральность.** Отравление не мгновенно; эффект меряется как многоступенчатая конверсия
-   E1→E4 и как частота приземления, не булев исход.
+   (рабочая память сессии → консолидация в долговременную память → включение в контекст → эффект
+   в ответе агента) и как частота закрепления, не булев исход.
 
 ---
 
@@ -58,7 +59,7 @@
                                         └───────────────────┬──────────────────┘
                                                             ▼
                                      runs/<id>/<module>/ : report__<name>.{json,md} · summary.json ·
-                                     attempts.jsonl · proof.md   ->   runs/<id>/ : findings · coverage · VULN_REPORT.{md,pdf}
+                                     attempts.jsonl · traces/ · proof.md  ->  runs/<id>/ : findings · coverage · REPORT_<штамп>.{md,pdf}
 ```
 
 **Слой атак — плагины `attack_vectors/`.** Каждая атака = папка `<name>/` с `vector.py` (подкласс `AttackVector`), подхват интроспекцией (`registry.py`, ноль регистрации). Оркестратор (`run.py`, грамматика `a-<name>`/`a-all`/`--report`) находит и гоняет векторы единым циклом; векторы вызывают готовые `tasks/`/`core`/`oracle`. Общие каркасы — `_docbase.py` (poison) и `_toolbase.py` (обёртки). На схеме выше — движок-ядро; плагины-векторы стоят между ORCHESTRATION и TASKS.
@@ -77,25 +78,26 @@
 | core | `provisioning.py` | Headless-выдача API-ключей (grant у IAM → ручка выдачи с bypass-заголовком → парс ключа), идемпотентный кэш. |
 | core | `openrouter.py` | Вызовы OpenRouter для слотов attacker/judge; лог модели+параметров (`openrouter.jsonl`). |
 | core | `attacker.py` | LLM-«мозг атаки»: генерация N формулировок (one-shot) и adaptive-мутация по ответу агента. |
-| core | `isolation.py` | Уникальный `session_id`; свежая канарейка; teardown маркеров; `reset_memory` (чистый прогон). |
+| core | `isolation.py` | Уникальный `session_id`; свежая канарейка; teardown маркеров; `prepare_reset` (по умолчанию точечная `purge_all_canaries`; полный `reset_memory` — только при `reset.full_wipe`). |
 | core | `runlog.py` | Контекст прогона: папка `runs/<id>/`, запись `attempts.jsonl`, артефактов. |
-| oracle | `state.py` | Детерминированный оракул: BAC на слое данных (served_cross_cus, account_owner) + чтение ярусов памяти (Redis/Mongo) + снимок состояния. |
+| oracle | `state.py` | Детерминированный оракул: BAC на слое данных (served_cross_cus, account_owner) + снимок состояния. Прямые БД-чтения канарейки памяти (`marker_landed_*`) закомментированы — вердикт по памяти даёт трейсер (см. `tracer.py`); функции сохранены как откат. |
 | oracle | `fingerprints.py` | Мульти-отпечаток по эталону; фильтр ложных плюсов (эхо запроса, короткие числа). |
-| oracle | `memory_observer.py` | Память как временной ряд: снимки с таймстампами + диффы (что появилось/вытеснилось). |
+| oracle | `tracer.py` | `TraceAnalyzer` — разбор JSONL стороннего трассировщика памяти (проект `yaml-memory-tracer`, white-box in-process к стенду). Единственный источник вердикта о закреплении: `from_cfg`/`clear`/`get_canary`/`save_trace`/`landed`. Ярус — по МЕТОДУ записи (`save_agent_policy`→global, `save_semantics`→user). Нет файла → `None` → откат на грей-бокс. |
+| oracle | `memory_observer.py` | Память как временной ряд: снимки с таймстампами + диффы. В потоке отравления ОТКЛЮЧЁН (БД-диффы не снимаются; вердикт — трейсер + Q&A); класс сохранён для оффлайн-анализа. |
 | oracle | `judge_llm.py` | Дифференциальный LLM-судья (чистая ↔ отравлённая память) — мягкий сигнал, калибруется об оракул. |
 | recon | `route_oracle.py` | Скрытые эндпоинты по разнице HTTP-кодов (black-box навод/автоконфиг). |
 | recon | `prompt_fuzz.py` | Статический (не-LLM) мутатор кандидатов — ось сравнения с LLM-атакующим. |
 | tasks | `bac.py` | Таск A: 3 канала (data-layer, agent-mediated, account-owner), свип+adaptive, пара vuln↔prot. |
-| tasks | `memory_poison.py` | Таск B: цикл E1→E4, продольный прогон по регистрам, landing-rate, baseline. |
+| tasks | `memory_poison.py` | Таск B: стадии рабочая→долговременная память→контекст→ответ (вердикт из трейсера), продольный прогон по регистрам, landing-rate. |
 | tasks | `chain_ab.py` | Связка A×B: BAC через отравлённую память. |
 | vectors | `attack_vectors/<name>/` | Модуль-плагин атаки (папка = вектор): `vector.py` (подкласс `AttackVector`), `params.yaml`, `README.md`. Подхват интроспекцией — ноль регистрации. |
-| vectors | `base.py` · `registry.py` | Контракт `AttackVector` + `VectorContext` (ленивые `client/attacker/judge`); discovery векторов. |
+| vectors | `base.py` · `registry.py` | Контракт `AttackVector` + `VectorContext` (ленивые `client/attacker/judge/tracer`); discovery векторов. |
 | vectors | `_docbase.py` · `_toolbase.py` | Общий каркас poison-векторов (docinject/directinject) и обёрток внешних тул. |
 | orch | `run.py` | CLI-дирижёр: грамматика `a-<name>`/`a-all`/`a-all-nowrapper` + оверрайды + `--report`; discover→run(vector)→report_std. Легаси smoke/bac/poison/models/chain сохранены. |
 | orch | `target_matrix.py` | Матрица целевых моделей через .env-оверлей стенда (бэкап→рестарт→прогон→восстановление). |
 | report | `report_std.py` | Строгая схема `report__<name>.{json,md}` на модуль (навязана драйвером даже при падении вектора). |
-| report | `synthesize.py` | Сводный `VULN_REPORT.{md,pdf}` по прогону: сильная LLM пишет прозу/дедуп, вердикт и пер-модульная таблица — детерминированы. |
-| report | `pdf.py` | Рендер `VULN_REPORT.md` → PDF (weasyprint; мягкая зависимость). |
+| report | `synthesize.py` | Сводный `REPORT_<штамп>.{md,pdf}` по прогону (`report_name`): сильная LLM (слот `reporter`) пишет прозу/дедуп, вердикт и пер-модульная таблица — детерминированы. Ссылается на файл трассировки успешной пробы. |
+| report | `pdf.py` | Рендер `REPORT_<штамп>.md` → PDF (weasyprint; мягкая зависимость). |
 | report | `poison_proof.py`·`bac_proof.py`·`chain_proof.py`·`docinject_proof.py` | Человекочитаемые `proof.md` («что написал юзер» + эффект). |
 | report | `findings.py`·`coverage.py`·`susceptibility.py`·`stats.py` | F-находки, матрица покрытия, сравнение моделей, доля+CI Уилсона. |
 
@@ -123,26 +125,37 @@ provisioning.ensure_key(1001)                       ← ключ атакующ�
    report.findings  (пара vulnerable↔protected; доля на N + CI)
 ```
 
-### 4б. Отравление памяти (Таск B) — цикл E1→E4
+### 4б. Отравление памяти (Таск B) — многоступенчатая конверсия
+
+Стадии словами: **рабочая память сессии → консолидация в долговременную память → включение в
+контекст → эффект в ответе агента**. Вердикт о закреплении даёт **внешний трейсер** (его JSONL),
+эффект — **вопрос-ответ (Q&A) в новой сессии / от другого клиента**. Прямые БД-чтения канарейки
+отключены.
 
 ```
-isolation.reset_memory()                          ← чистый старт
+prepare_reset(cfg)                                ← точечная чистка канареек (purge_all_canaries);
+                                                     полный вайп — только при reset.full_wipe
 clean_reply = client.chat(victim, нейтральный_?)  ← контроль (чистая память)
+tracer.clear()                                    ← удалить файл трейсера ДО пробы
 
 цикл × N (свежий marker каждый раз):
-   E1  client.dialog(1001, payload_turns)  → state.working_memory() содержит marker?
-   ──  client.finalize(1001, via=endpoint|chat_word)         ← ТРИГГЕР (иначе эффекта нет)
-   E2  state.marker_landed_global() / marker_landed_user()   ← дифф policy/semantic
-   E3  state.marker_in_victim_context(marker, target)        ← тем же лимитом, что система
-   E4  reply = client.chat(target, нейтральный_?);  marker in reply?
-       judge_llm.differential(clean_reply, reply)            ← мягкий сигнал
-   teardown: isolation.cleanup_marker(marker)
+   client.dialog(1001, payload_turns)                       → in_working_memory (лог append_turn в трейсе)
+   client.finalize(1001, via=endpoint|chat_word)            ← ТРИГГЕР консолидации (иначе эффекта нет)
+   v = tracer.get_canary(marker)                            ← None → трейсер молчит → откат на грей-бокс
+       persisted_global = tracer.landed(v, scope="global")  ← ярус по МЕТОДУ (save_agent_policy)
+       persisted_user   = tracer.landed(v, scope="user")    ←              (save_semantics)
+       in_retrieved_context = v.retrieved                    ← build_context в трейсе (чтение контекста)
+   reply = client.chat(target, нейтральный_?)               → spread_to_target: global→жертва, user→автор
+       marker_in_reply?;  judge_llm.differential(clean_reply, reply)   → reply_influence (мягкий сигнал)
+   tracer.save_trace(run.dir, tag=marker)  (если закрепилось) → traces/trace_<datetime>_<marker>.jsonl
+   teardown (грей-бокс): isolation.cleanup_marker(marker)
 
-baseline: безобидные finalize без атаки → базовая частота global (находка = превышение)
+baseline (base_rate): ОТКЛЮЧЁН — проверки только через трейс + Q&A, не через чтение БД
 ```
 
-Цель распространения зависит от яруса приземления: `global` → жертва (другой клиент);
-`user` → сам автор в новой сессии (within-user persistence).
+Цель распространения зависит от яруса закрепления: `global` → жертва (другой клиент);
+`user` → сам автор в новой сессии (within-user persistence). Каждая УСПЕШНАЯ проба пишет трейс в
+`traces/`, сводный отчёт на него ССЫЛАЕТСЯ («Файл трассировки»).
 
 ---
 
@@ -151,7 +164,7 @@ baseline: безобидные finalize без атаки → базовая ч�
 | Ось | Варианты | Где реализовано |
 |---|---|---|
 | Генерация атаки | static (payloads/prompt_fuzz) · LLM one-shot · LLM adaptive | `tasks/bac`, `attacker.py` |
-| Детект успеха | детерминированный оракул · LLM-судья · оба (калибровка) | `oracle/state` + `oracle/judge_llm` |
+| Детект успеха | детерминированный оракул (BAC) · трейсер памяти + Q&A · LLM-судья · калибровка | `oracle/state` (BAC) + `oracle/tracer` (память) + `oracle/judge_llm` |
 | Оркестрация | фиксированный порядок в коде · (задел под LLM-решение шага) | `orchestration/run` |
 
 Каждая попытка в `attempts.jsonl` помечена вариантом (канал, атакующая модель, режим), чтобы
@@ -163,13 +176,13 @@ baseline: безобидные finalize без атаки → базовая ч�
 
 | Доступ к цели | BAC | Отравление |
 |---|---|---|
-| grey-box (Redis/Mongo на host) | дифф ярусов + прямое чтение | дифф `policy`/`semantic` (сильнейший) |
-| api-box (только HTTP + провижининг) | served_cross_cus; отпечатки в ответе | ответ finalize, `GET /memory`, отпечатки |
-| black-box (только чат) | отпечатки жертвы в ответе агента | маркер в ответе жертвы (E4), дифференциально |
+| трейсер (JSONL трассировщика памяти) | — | **файл трейсера**: закрепление по МЕТОДУ (global/user) — основной источник вердикта |
+| grey-box (Redis/Mongo на host) | дифф ярусов + прямое чтение | откат, если трейсер молчит (прямые БД-чтения канарейки закомментированы) |
+| black-box (только чат / Q&A) | отпечатки жертвы в ответе агента | маркер в ответе жертвы (Q&A в новой сессии), дифференциально |
 
 Режим детекта фиксируется в находке. Для текущей цели доступен grey-box (redis:16379/mongo:37017
-проброшены) → сильнейший детект. `recon/` достраивает недостающие факты вслепую, если grey-box
-или `customer_info` неполны.
+проброшены), а память судится по **файлу трейсера** (`yaml-memory-tracer`, white-box in-process) +
+Q&A. `recon/` достраивает недостающие факты вслепую, если grey-box или `customer_info` неполны.
 
 ---
 
@@ -181,7 +194,8 @@ baseline: безобидные finalize без атаки → базовая ч�
   (коллекции/лимиты), tools (7 чувствительных + 7 справочных), identities (эталон 1001–1005 с
   отпечатками), target_models, deployment (для оверлея модели), needs_review (пробелы).
 - **`hypotheses.yaml`** — H1..H5: тип, участники, точка детекта, оси свипа (ссылки `from_target`).
-- **`models.yaml`** — слоты attacker/judge/target_brain/target_consolidation (списки кандидатов).
+- **`models.yaml`** — слоты attacker/judge/target_brain/target_consolidation + `report` (QC-сводка
+  обёрток) и `reporter` (ядро-отчётник, дефолт `claude-sonnet-5`) — списки кандидатов.
 - **`payloads.yaml`** — формулировки по регистрам (benign/instruction/compliance/universal),
   `{marker}`/`{account_id}` подставляются на прогоне.
 
@@ -193,12 +207,13 @@ baseline: безобидные finalize без атаки → базовая ч�
 ## 8. Жизненный цикл прогона и изоляция
 
 1. `Run()` создаёт `runs/<id>/`, открывает `attempts.jsonl`.
-2. Очистка: `purge_all_canaries()` (по сигнатурам маркеров) или `reset_memory()` (полный сброс
-   ярусов, кроме `api_keys`).
-3. Каждая попытка: свежий `session_id`, свежая канарейка → атака → оракул → запись строки →
+2. Очистка: `prepare_reset()` → по умолчанию точечная `purge_all_canaries()` (по сигнатурам
+   маркеров); полный `reset_memory()` (сброс ярусов, кроме `api_keys`) — только при `reset.full_wipe`
+   (он клобберит со-арендаторов стенда).
+3. Каждая попытка: свежий `session_id`, свежая канарейка → атака → трейсер/оракул → запись строки →
    teardown маркера.
-4. Между разными формулировками отравления — `reset_memory()` (накопление контрзаписей одного
-   payload не занижает приземление другого); внутри формулировки накопление сохраняется
+4. Между разными формулировками отравления — точечная чистка канареек (накопление контрзаписей
+   одного payload не занижает закрепление другого); внутри формулировки накопление сохраняется
    (dose-response).
 5. Смена модели цели (`target_matrix`): бэкап `.env` → правка переменной → рестарт agent-api →
    ожидание health → прогон → **восстановление `.env`** в `finally` (стенд возвращается в исходное).
@@ -210,7 +225,7 @@ baseline: безобидные finalize без атаки → базовая ч�
 - **`findings.json/.md`** — главный артефакт. Поля: `id`, `class`, `severity`, `status`
   (demonstrated / not-demonstrated), `reproduction` (общий словарь канал/ярус/роль + конкретные
   параметры), `detection` (чем подтверждено), `success` (доля на N + CI Уилсона).
-- **`report__<name>.{json,md}`** (на модуль) + сводный **`VULN_REPORT.{md,pdf}`** (`synthesize`, команда `report` / флаг `--report`) — канонический выход прогона; `findings.json`/`coverage` — кумулятивное сырьё.
+- **`report__<name>.{json,md}`** (на модуль) + сводный **`REPORT_<штамп>.{md,pdf}`** (`synthesize`, команда `report` / флаг `--report`; пишется в папку прогона `output/runs/<штамп>/` и в `output/`) — канонический выход прогона; `findings.json`/`coverage` — кумулятивное сырьё.
 - **`coverage.md`** — что перебрано и с какой долей (чтобы «безопасно» опиралось на исчерпанный
   свип).
 - **`susceptibility_*.md`** — сравнение атакующих и целевых моделей.
