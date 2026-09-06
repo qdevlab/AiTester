@@ -15,16 +15,25 @@
 ## Установка
 
 ```bash
-cd genai-harness
+cd aitest_cui
 python3 -m venv .venv && ./.venv/bin/pip install pyyaml pymongo redis requests
 echo 'OPENROUTER_API_KEY=sk-or-v1-...' > .env      # ключ для слотов attacker/judge
 ```
 
-Цель должна быть поднята (для стенда genai-invest: `cd ~/genai-invest-stand && docker compose up -d`).
+Цель должна быть поднята (для стенда genai-invest: `cd ~/genai-invest-stand-cui && docker compose up -d`).
 Модель ЦЕЛИ меняется в `.env` стенда (оверлей), не в коде тулы.
 
 ## Запуск
 
+Основной интерфейс — модульные векторы (грамматика `a-<name>`); подробно в корневом `README.md` и `docs/ATTACK_VECTORS.md`:
+```bash
+./.venv/bin/python run.py --list                 # реестр векторов + параметры
+./.venv/bin/python run.py a-all --report         # все активные векторы + сразу VULN_REPORT
+./.venv/bin/python run.py a-bac a-docinject      # выбранные векторы
+./.venv/bin/python run.py report                 # свод по прогону -> output/VULN_REPORT.{md,pdf}
+```
+
+Легаси-команды (плоский вывод, тот же движок):
 ```bash
 ./.venv/bin/python run.py smoke              # провижининг, чат, оракул, teardown (без LLM)
 ./.venv/bin/python run.py bac    --attempts 5   # Таск A: BAC (3 канала), findings
@@ -37,9 +46,9 @@ echo 'OPENROUTER_API_KEY=sk-or-v1-...' > .env      # ключ для слото�
 Прогресс идёт в консоль (stderr) в реальном времени: этапы каналов и тики по каждой попытке
 (`[3/6] leak=True`, `[2/4] E1=.. E2=.. scope=.. E3=.. E4=..`). Итоговый JSON — в stdout, поэтому
 `run ... > out.json` даёт чистый JSON, а прогресс виден на экране. Тихий режим: `HARNESS_QUIET=1`.
-Матрица целевых моделей (перезапуск стенда per-model): `python -m harness.orchestration.target_matrix`.
+Матрица целевых моделей (перезапуск стенда per-model): `PYTHONPATH=source ./.venv/bin/python -m harness.orchestration.target_matrix`.
 
-Результаты — в `harness/runs/<run-id>/`: `findings.json`/`findings.md` (главный артефакт),
+Результаты — в `output/runs/<run-id>/`: `findings.json`/`findings.md` (главный артефакт),
 `attempts.jsonl` (сырой лог попыток, одна = строка), `calls.jsonl` (аудит вызовов агента),
 `openrouter.jsonl` (вызовы attacker/judge: модель, параметры, `finish_reason`, `empty`),
 `*_summary.json`, `susceptibility_*.md`.
@@ -52,9 +61,13 @@ echo 'OPENROUTER_API_KEY=sk-or-v1-...' > .env      # ключ для слото�
   (session_id, teardown канареек, reset памяти).
 - `oracle/` — `state` (BAC + чтение ярусов), `fingerprints` (мульти-отпечаток, без ложных плюсов),
   `memory_observer` (память как временной ряд, диффы), `judge_llm` (дифференциальный судья).
-- `tasks/` — `bac` (Таск A), `memory_poison` (Таск B: E1→E4, продольно), `chain_ab`.
-- `orchestration/` — `run` (точка входа/CLI).
-- `report/` — `findings`, `stats` (Уилсон CI), `susceptibility`.
+- `attack_vectors/` — **модульные плагины атак** (папка = вектор: `vector.py`/`params.yaml`/`README.md`),
+  подхват интроспекцией (ноль регистрации); `base.py`/`registry.py` (контракт+дискавери),
+  `_docbase.py`/`_toolbase.py` (общие каркасы poison-векторов и обёрток). Поверх `tasks/`/`core`/`oracle`.
+- `tasks/` — `bac` (Таск A), `memory_poison` (Таск B: E1→E4, продольно), `chain_ab` — логика, её зовут векторы.
+- `orchestration/` — `run` (CLI: грамматика `a-<name>`/`a-all`/`--report`), `target_matrix` (матрица целевых моделей).
+- `report/` — `report_std` (стандарт `report__<name>.{json,md}`), `synthesize` (сводный `VULN_REPORT`), `pdf`,
+  proof-билдеры (`poison_proof`/`bac_proof`/`chain_proof`), `findings`, `coverage`, `stats` (Уилсон), `susceptibility`.
 
 ## Инварианты (из ТЗ)
 

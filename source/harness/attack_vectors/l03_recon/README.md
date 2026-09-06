@@ -15,7 +15,7 @@
 ## Параметры
 См. `params.yaml`. Override: `l03_recon--probes=[...]`.
 
-## Запуск (после появления ядра плагина)
+## Запуск
 ```
 python run.py a-l03_recon
 python run.py --list
@@ -24,4 +24,4 @@ python run.py --list
 ## Что кладёт в отчёт
 `report__l03_recon.{json,md}`. Находка `F-L03-RECON`, класс `recon`, severity medium, доля +
 Wilson-CI, список раскрытого в detection. Таксономия: OWASP ASI06 / LLM01, ATLAS AML.T0064 / T0084 /
-T0069 (release 2026.08). Источник: submission `catalog/CATALOG.md` §TC-L03.
+T0069 (release 2026.08). Источник: submission `catalog/CATALOG.md` (внешний submission-каталог, вне репозитория) §TC-L03.

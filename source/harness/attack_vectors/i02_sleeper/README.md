@@ -13,9 +13,9 @@ policy(global) доступен и другому клиенту (cross-tenant).
 Идентичности, коллекции ярусов, finalize-триггер — из `config/target.yaml` через `ctx.cfg`.
 
 ## Параметры
-См. `params.yaml`. Override: `i02_sleeper--attempts=12`, `--trigger=chat_word`, `--turns=[...]`.
+См. `params.yaml`. Override: `i02_sleeper--attempts=12`, `i02_sleeper--trigger=chat_word`, `i02_sleeper--turns=[...]`.
 
-## Запуск (после появления ядра плагина)
+## Запуск
 ```
 python run.py a-i02_sleeper
 python run.py --list
@@ -24,4 +24,4 @@ python run.py --list
 ## Что кладёт в отчёт
 `report__i02_sleeper.{json,md}`. Находка `F-I02-SLEEPER`, класс `poison-global`, доля приземления
 после finalize + Wilson-CI. Таксономия: OWASP ASI06 / LLM01, ATLAS AML.T0094 / T0051.002 (release
-2026.08). Источник: submission `catalog/CATALOG.md` §TC-I02.
+2026.08). Источник: submission `catalog/CATALOG.md` (внешний submission-каталог, вне репозитория) §TC-I02.

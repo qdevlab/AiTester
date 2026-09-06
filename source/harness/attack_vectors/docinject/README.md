@@ -16,14 +16,14 @@
 ## Профили (не декартов продукт — связки)
 `explicit` (imperative + quarterly_review + header), `stealth` (metadata + compliance_memo + footer).
 Библиотека: `precedent`, `authority`, `sysnote` + 6 жанров (см. `payloads.yaml → docinject`).
-`mode=all` → 2 дефолтных профиля (разные маркеры). Полный перебор — через override или (v2) оракул-цикл.
+`mode=all` → 2 дефолтных профиля **precedent+stealth** (`payloads.yaml → docinject.default_profiles`, разные маркеры). Полный перебор — через override; управляемый поиск — вектор `docinject_oracle`.
 
 ## Параметры
 См. `params.yaml`. Примеры:
 ```
-python -m harness.orchestration.run a-docinject
-python -m harness.orchestration.run a-docinject docinject--carrier=static docinject--attempts=3
-python -m harness.orchestration.run a-docinject docinject--framing=precedent docinject--doc_kind=style_guide
+./.venv/bin/python run.py a-docinject
+./.venv/bin/python run.py a-docinject docinject--carrier=static docinject--attempts=3
+./.venv/bin/python run.py a-docinject docinject--framing=precedent docinject--doc_kind=style_guide
 ```
 
 ## Находки

@@ -236,14 +236,14 @@
 ## 10. Как запустить и куда смотреть
 
 ```bash
-./.venv/bin/python -m harness.orchestration.run smoke     # проверка связности
-./.venv/bin/python -m harness.orchestration.run bac       # атака доступа (BAC)
-./.venv/bin/python -m harness.orchestration.run poison    # отравление памяти
-./.venv/bin/python -m harness.orchestration.run models    # сравнение атакующих моделей
-./.venv/bin/python -m harness.orchestration.run chain     # связка A×B
+./.venv/bin/python run.py smoke     # проверка связности
+./.venv/bin/python run.py bac       # атака доступа (BAC)
+./.venv/bin/python run.py poison    # отравление памяти
+./.venv/bin/python run.py models    # сравнение атакующих моделей
+./.venv/bin/python run.py chain     # связка A×B
 ```
 
-Результаты каждого прогона — в `harness/runs/<id>/`:
+Результаты каждого прогона — в `output/runs/<id>/`:
 - **`findings.json` / `findings.md`** — главный артефакт: список дыр с инструкцией «как повторить»,
   долей успеха и погрешностью;
 - **`attempts.jsonl`** — сырой лог: каждая попытка = строка (какая атака, какая модель, что

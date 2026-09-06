@@ -57,9 +57,11 @@
                                         │  susceptibility · stats (Уилсон)      │
                                         └───────────────────┬──────────────────┘
                                                             ▼
-                                     runs/<id>/ : findings.json · attempts.jsonl ·
-                                     calls.jsonl · openrouter.jsonl · *.md
+                                     runs/<id>/<module>/ : report__<name>.{json,md} · summary.json ·
+                                     attempts.jsonl · proof.md   ->   runs/<id>/ : findings · coverage · VULN_REPORT.{md,pdf}
 ```
+
+**Слой атак — плагины `attack_vectors/`.** Каждая атака = папка `<name>/` с `vector.py` (подкласс `AttackVector`), подхват интроспекцией (`registry.py`, ноль регистрации). Оркестратор (`run.py`, грамматика `a-<name>`/`a-all`/`--report`) находит и гоняет векторы единым циклом; векторы вызывают готовые `tasks/`/`core`/`oracle`. Общие каркасы — `_docbase.py` (poison) и `_toolbase.py` (обёртки). На схеме выше — движок-ядро; плагины-векторы стоят между ORCHESTRATION и TASKS.
 
 Цель (внешняя система) — отдельный процесс; тула взаимодействует ТОЛЬКО снаружи: HTTP-ручки
 агента/данных + прямое чтение хранилищ (grey-box) + оверлей развёртывания для смены модели.
@@ -86,12 +88,16 @@
 | tasks | `bac.py` | Таск A: 3 канала (data-layer, agent-mediated, account-owner), свип+adaptive, пара vuln↔prot. |
 | tasks | `memory_poison.py` | Таск B: цикл E1→E4, продольный прогон по регистрам, landing-rate, baseline. |
 | tasks | `chain_ab.py` | Связка A×B: BAC через отравлённую память. |
-| orch | `run.py` | CLI-дирижёр: smoke/bac/poison/models/chain; setup→прогон→findings→coverage. |
+| vectors | `attack_vectors/<name>/` | Модуль-плагин атаки (папка = вектор): `vector.py` (подкласс `AttackVector`), `params.yaml`, `README.md`. Подхват интроспекцией — ноль регистрации. |
+| vectors | `base.py` · `registry.py` | Контракт `AttackVector` + `VectorContext` (ленивые `client/attacker/judge`); discovery векторов. |
+| vectors | `_docbase.py` · `_toolbase.py` | Общий каркас poison-векторов (docinject/directinject) и обёрток внешних тул. |
+| orch | `run.py` | CLI-дирижёр: грамматика `a-<name>`/`a-all`/`a-all-nowrapper` + оверрайды + `--report`; discover→run(vector)→report_std. Легаси smoke/bac/poison/models/chain сохранены. |
 | orch | `target_matrix.py` | Матрица целевых моделей через .env-оверлей стенда (бэкап→рестарт→прогон→восстановление). |
-| report | `findings.py` | Сборка `findings.json/.md` (репродукция, детект, доля+CI, severity). |
-| report | `coverage.py` | Матрица покрытия векторов из `attempts.jsonl`. |
-| report | `susceptibility.py` | Таблицы сравнения атакующих/целевых моделей. |
-| report | `stats.py` | Доля успеха + доверительный интервал Уилсона. |
+| report | `report_std.py` | Строгая схема `report__<name>.{json,md}` на модуль (навязана драйвером даже при падении вектора). |
+| report | `synthesize.py` | Сводный `VULN_REPORT.{md,pdf}` по прогону: сильная LLM пишет прозу/дедуп, вердикт и пер-модульная таблица — детерминированы. |
+| report | `pdf.py` | Рендер `VULN_REPORT.md` → PDF (weasyprint; мягкая зависимость). |
+| report | `poison_proof.py`·`bac_proof.py`·`chain_proof.py`·`docinject_proof.py` | Человекочитаемые `proof.md` («что написал юзер» + эффект). |
+| report | `findings.py`·`coverage.py`·`susceptibility.py`·`stats.py` | F-находки, матрица покрытия, сравнение моделей, доля+CI Уилсона. |
 
 ---
 
@@ -161,7 +167,7 @@ baseline: безобидные finalize без атаки → базовая ч�
 | api-box (только HTTP + провижининг) | served_cross_cus; отпечатки в ответе | ответ finalize, `GET /memory`, отпечатки |
 | black-box (только чат) | отпечатки жертвы в ответе агента | маркер в ответе жертвы (E4), дифференциально |
 
-Режим детекта фиксируется в находке. Для текущей цели доступен grey-box (redis:6379/mongo:27017
+Режим детекта фиксируется в находке. Для текущей цели доступен grey-box (redis:16379/mongo:37017
 проброшены) → сильнейший детект. `recon/` достраивает недостающие факты вслепую, если grey-box
 или `customer_info` неполны.
 
@@ -204,6 +210,7 @@ baseline: безобидные finalize без атаки → базовая ч�
 - **`findings.json/.md`** — главный артефакт. Поля: `id`, `class`, `severity`, `status`
   (demonstrated / not-demonstrated), `reproduction` (общий словарь канал/ярус/роль + конкретные
   параметры), `detection` (чем подтверждено), `success` (доля на N + CI Уилсона).
+- **`report__<name>.{json,md}`** (на модуль) + сводный **`VULN_REPORT.{md,pdf}`** (`synthesize`, команда `report` / флаг `--report`) — канонический выход прогона; `findings.json`/`coverage` — кумулятивное сырьё.
 - **`coverage.md`** — что перебрано и с какой долей (чтобы «безопасно» опиралось на исчерпанный
   свип).
 - **`susceptibility_*.md`** — сравнение атакующих и целевых моделей.
@@ -217,9 +224,7 @@ baseline: безобидные finalize без атаки → базовая ч�
 ## 10. Точки расширения
 
 - **Новая цель** → `config/target.yaml` (+ `customer_info.md`), без правок кода.
-- **Новый вектор** → строка в `payloads.yaml` / новая гипотеза в `hypotheses.yaml`.
+- **Новый вектор атаки** → папка `attack_vectors/<name>/` (`vector.py`/`params.yaml`/`README.md`); подхват интроспекцией, ноль правок ядра (см. `ATTACK_VECTORS.md`).
+- **Новая формулировка/регистр** → строка в `payloads.yaml`; новая гипотеза — в `hypotheses.yaml`.
 - **Новая атакующая/целевая модель** → строка в `models.yaml` (candidates).
-- **Новый класс атаки** → модуль в `tasks/` поверх готовых `core`/`oracle` (транспорт, оракул,
-  отпечатки, изоляция переиспользуются).
-- **Новый внешний движок** (garak/llamator/…) → адаптер поверх `client.py`, вердикт — тем же
-  оракулом состояния.
+- **Новый внешний движок** (garak/llamator/deepteam/…) → обёртка-вектор с `is_wrapper=True` поверх `tool_wrappers/` + `_toolbase.py`; вердикт — тем же оракулом/скептическим QC.

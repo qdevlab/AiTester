@@ -1,7 +1,7 @@
 # docinject — oracle-in-the-loop (детальный дизайн + промпт исполнителю)
 
 Живёт в папке модуля: вся история про «оракул в цикле» здесь. Базовый оракул (`oracle/state.py`)
-уже есть; новое — ПЕТЛЯ поверх него. Реализуется как режим `search=oracle` вектора docinject.
+уже есть; новое — ПЕТЛЯ поверх него. **Реализовано как отдельный вектор `docinject_oracle` (и `directinject_oracle`)** через `OracleLoopMixin` в `_docbase.py`, не как режим `search`. Ниже — исходный дизайн (обоснование весов/фаз/политики).
 
 ## Зачем
 Сейчас генерация open-loop: гоним фикс-профили × attempts, в конце считаем попадания — вслепую, без
@@ -31,9 +31,9 @@
    не лёг) → штраф arm + сдвиг оси framing к менее наглой.
 5. **Две фазы:** SEARCH (найти лучший arm) → CONFIRM (топ-arm × `confirm_n` → доля + Wilson-CI);
    `findings()` строит вердикт по CONFIRM-фазе (сохраняем статистическую строгость).
-6. **Корпус (M2S):** arm с `E2_global | resurf_victim` → `corpus.record("docinject_win", {...})`
+6. **Корпус (M2S):** arm с `E2_global | resurf_victim` → `corpus.record("docinject_oracle_win", {...})`
    (framing/doc_kind/placement + внедрённый текст); при старте oracle-режима подтягивать
-   `corpus.templates("docinject_win")` как приоритетные arms.
+   `corpus.templates("docinject_oracle_win")` как приоритетные arms.
 7. **Интеграция — минимум кода:** параметр `search: fixed|oracle` (дефолт fixed). `run()` ветвится;
    `fixed` не трогать; `oracle` — планировщик поверх готового `_one()` (считает награду из record,
    выбирает arm, копит winners). reset_each, failsafe, отчёты — как есть.
@@ -48,6 +48,8 @@
 
 ## Промпт исполнителю (реализация)
 
+> **Историческое (СДЕЛАНО).** Ниже — исходное ТЗ исполнителю; реализовано как отдельный вектор `docinject_oracle` (не режим `search`). Оставлено как обоснование весов награды/фаз/политики.
+
 Ты — инженер. Реализуй oracle-in-the-loop как режим `search=oracle` вектора `docinject` в aitest_cui
 (`/home/dev/aitest_cui`). Ничего не ломай в других векторах; всё config-driven; failsafe.
 
@@ -60,8 +62,7 @@
 Реализуй пункты 1-8 из дизайна выше (search=fixed|oracle; награда из оракула по весам конфига; arms;
 UCB1; смягчение на отказе; SEARCH→CONFIRM; корпус M2S; планировщик поверх `_one()`).
 
-Проверка (изолированно, стенд genai-cui 9xxx): `run.py a-docinject docinject--search=oracle
-docinject--carrier=static docinject--attempts=8` — покажи, что петля дропает отказные arms (explicit),
+Проверка (изолированно, стенд genai-cui 9xxx): `run.py a-docinject_oracle docinject_oracle--carrier=static docinject_oracle--attempts=8` — покажи, что петля дропает отказные arms (explicit),
 концентрируется на выигравших (stealth/precedent), пишет winners в корпус, CONFIRM даёт долю+CI; сравни
 с `search=fixed` по числу global-попаданий на тот же бюджет. Верни: файлы-изменения, поведение петли,
 цифры сравнения. Ничего не менять вне задачи.

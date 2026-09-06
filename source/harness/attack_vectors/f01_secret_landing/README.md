@@ -13,9 +13,9 @@
 Боевых секретов нет — только канарейки.
 
 ## Параметры
-См. `params.yaml`. Override: `f01_secret_landing--attempts=12`, `--secrets=[...]`.
+См. `params.yaml`. Override: `f01_secret_landing--attempts=12`, `f01_secret_landing--secrets=[...]`.
 
-## Запуск (после появления ядра плагина)
+## Запуск
 ```
 python run.py a-f01_secret_landing
 python run.py --list
@@ -24,4 +24,4 @@ python run.py --list
 ## Что кладёт в отчёт
 `report__f01_secret_landing.{json,md}`. Находка `F-F01-SECRET-LANDING`, класс `within-user`, доля +
 Wilson-CI. Таксономия: OWASP ASI06 / LLM02, ATLAS AML.T0082 (release 2026.08). Источник: submission
-`catalog/CATALOG.md` §TC-F01.
+`catalog/CATALOG.md` (внешний submission-каталог, вне репозитория) §TC-F01.

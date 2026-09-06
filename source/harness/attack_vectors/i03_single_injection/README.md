@@ -14,10 +14,10 @@
 `semantic`, лимит контекста, идентичность атакующего). Ноль литералов стенда.
 
 ## Параметры
-См. `params.yaml`. Override из CLI: `i03_single_injection--attempts=12`, `--trigger=chat_word`,
-`--turns=[...]`. Неизвестный ключ → варнинг, дефолт.
+См. `params.yaml`. Override из CLI: `i03_single_injection--attempts=12`, `i03_single_injection--trigger=chat_word`,
+`i03_single_injection--turns=[...]`. Неизвестный ключ → варнинг, дефолт.
 
-## Запуск (после появления ядра плагина)
+## Запуск
 ```
 python run.py a-i03_single_injection
 python run.py a-i03_single_injection i03_single_injection--attempts=12
@@ -27,4 +27,4 @@ python run.py --list
 ## Что кладёт в отчёт
 `report__i03_single_injection.{json,md}` (пишет драйвер). Находка `F-I03-PERSIST`, класс `within-user`,
 доля приземления + Wilson-CI, статус demonstrated/not-demonstrated. Таксономия: OWASP ASI06 / LLM01,
-ATLAS AML.T0080.000 (release 2026.08). Источник: submission `catalog/CATALOG.md` §TC-I03.
+ATLAS AML.T0080.000 (release 2026.08). Источник: submission `catalog/CATALOG.md` (внешний submission-каталог, вне репозитория) §TC-I03.

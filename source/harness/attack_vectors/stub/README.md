@@ -6,9 +6,9 @@
 
 ## Запуск
 ```
-python -m harness.orchestration.run a-stub
-python -m harness.orchestration.run a-stub stub--message="привет" stub--reps=3
-python -m harness.orchestration.run --list        # виден в реестре
+./.venv/bin/python run.py a-stub
+./.venv/bin/python run.py a-stub stub--message="привет" stub--reps=3
+./.venv/bin/python run.py --list        # виден в реестре
 ```
 
 ## Параметры
@@ -18,5 +18,5 @@ python -m harness.orchestration.run --list        # виден в реестре
 ## Что проверяет
 - вектор найден БЕЗ регистрации (лежит папкой);
 - `a-stub` выбирает его, `stub--key=val` меняет параметр;
-- пишутся `stub_summary.json`, `attempts.jsonl`, `findings.json/md`, `report__stub.json/md`;
+- пишутся `summary.json`, `attempts.jsonl`, `findings.json`, `report__stub.{json,md}` (агрегатный `findings.md` — в корне папки прогона);
 - `mutates_state=False` → стенд не сбрасывается и lease не берётся.

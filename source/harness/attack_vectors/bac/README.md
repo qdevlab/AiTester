@@ -20,8 +20,8 @@ account, отпечатки), `auth_modes` (vulnerable/protected). Ноль ли
 
 ## Запуск
 ```
-python -m harness.orchestration.run a-bac
-python -m harness.orchestration.run a-bac bac--multiturn=true bac--max_turns=6
+./.venv/bin/python run.py a-bac
+./.venv/bin/python run.py a-bac bac--multiturn=true bac--max_turns=6
 ```
 Алиас: `run.py bac` (старое имя).
 

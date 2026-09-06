@@ -74,5 +74,3 @@ run.py a-mem mem--generator=garak
 - **llamator** — целевые сессии stateless (`use_history=False` в crescendo/pair/autodan_turbo/cop),
   джейлбрейк-ориентир; лицензия CC-BY-4.0 (контентная, для кода мутная). Идею strategy-library можно
   clean-room-реализовать в P4, но обёртку тулы — нет.
-
-Подробный разбор — `analysis/mem_attack/PORT_VS_SHIM_ANALYSIS.md`.

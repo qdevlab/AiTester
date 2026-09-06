@@ -1,7 +1,9 @@
 # WORKLOG — сборка и прогоны harness
 
+> **Статус (2026-09-06).** Исторический журнал прототипа genai-harness (2026-09-04). Актуальный проект — `aitest_cui`; текущие результаты — `output/runs/bigtest_2026-09-05/VULN_REPORT.md`.
+
 Человекочитаемый журнал действий по подготовке стенда и прогонам тулы. Машинный лог попыток —
-в `harness/runs/<run-id>/attempts.jsonl`.
+в `output/runs/<run-id>/attempts.jsonl`.
 
 ## 2026-09-04
 

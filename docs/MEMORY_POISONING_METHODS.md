@@ -86,7 +86,7 @@ MINJA**, где «оптимизация» = **поведенческий сиг
 ## План усиления генерации под наш стенд (приоритеты)
 
 Привязка к нашему коду: `oracle/state.py` (оракул), `core/conversation.py` (Crescendo/GOAT+backtrack
-уже есть), `core/corpus.py` (M2S-корпус уже есть), `attack_vectors/mem/vector.py`,
+уже есть), `core/corpus.py` (корпус выигравших темплейтов; M2S-сжатие — в планах, см. P4), `attack_vectors/mem/vector.py`,
 `tasks/memory_poison.py`.
 
 - **P0 — Замкнуть цикл на state-оракул (max эффект / min цена).** Обернуть генерацию в цикл

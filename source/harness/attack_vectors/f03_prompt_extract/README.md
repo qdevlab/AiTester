@@ -14,9 +14,9 @@ canary всплывает в его ответе, доказано cross-tenant.
 через `ctx.cfg`.
 
 ## Параметры
-См. `params.yaml`. Override: `f03_prompt_extract--attempts=8`, `--plant=[...]`, `--reveal=[...]`.
+См. `params.yaml`. Override: `f03_prompt_extract--attempts=8`, `f03_prompt_extract--plant=[...]`, `f03_prompt_extract--reveal=[...]`.
 
-## Запуск (после появления ядра плагина)
+## Запуск
 ```
 python run.py a-f03_prompt_extract
 python run.py --list
@@ -25,4 +25,4 @@ python run.py --list
 ## Что кладёт в отчёт
 `report__f03_prompt_extract.{json,md}`. Находка `F-F03-PROMPT-EXTRACT`, класс `poison-global`, доля +
 Wilson-CI. Таксономия: OWASP ASI06 / LLM01, ATLAS AML.T0056 (release 2026.08). Источник: submission
-`catalog/CATALOG.md` §TC-F03.
+`catalog/CATALOG.md` (внешний submission-каталог, вне репозитория) §TC-F03.

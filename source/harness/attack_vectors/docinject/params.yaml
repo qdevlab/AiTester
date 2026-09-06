@@ -8,7 +8,7 @@ params:
     type: str
     default: all
     options: [all, explicit, stealth]
-    description: "all=2 профиля (explicit+stealth, разные маркеры); иначе один профиль."
+    description: "all=2 дефолтных профиля (precedent+stealth из payloads.yaml), разные маркеры; иначе один профиль."
   carrier:
     type: str
     default: llm

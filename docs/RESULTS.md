@@ -2,8 +2,10 @@
 
 Прогоны тулы `genai-harness` против стенда. Модель цели: `openai/gpt-5-mini` (мозг +
 консолидация). Все находки — по **детерминированному оракулу состояния** (не по тексту).
-Артефакты прогонов — в `harness/runs/<run-id>/` (`findings.json`, `attempts.jsonl`,
+Артефакты прогонов — в `output/runs/<run-id>/` (`findings.json`, `attempts.jsonl`,
 `calls.jsonl`, `coverage.md`).
+
+> **Статус (2026-09-06).** Ниже — историческая кампания прототипа genai-harness (2026-09-04, 6 находок). Актуальные результаты — авто-отчёт `output/runs/bigtest_2026-09-05/VULN_REPORT.md`: **13 подтверждённых** (3 critical, 9 high, 1 medium); внешние обёртки deepteam/garak/llamator — 0 подтверждённых.
 
 ## Итог по классам
 

@@ -16,8 +16,8 @@
 
 ## Запуск
 ```
-python -m harness.orchestration.run a-docinject_oracle
-python -m harness.orchestration.run a-docinject_oracle docinject_oracle--attempts=12 docinject_oracle--confirm_n=4
+./.venv/bin/python run.py a-docinject_oracle
+./.venv/bin/python run.py a-docinject_oracle docinject_oracle--attempts=12 docinject_oracle--confirm_n=4
 ```
 `summary.search` содержит средние награды по arms и выбранный top_arm (видно, что петля сошлась,
 напр., на precedent). Полный дизайн: `../docinject/ORACLE_LOOP.md`.

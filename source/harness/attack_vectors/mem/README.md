@@ -3,6 +3,8 @@
 Внедряет через диалог факт/инструкцию (маркер-слово), триггерит консолидацию (`finalize`) и мерит,
 куда он приземлился.
 
+**`active=False`** — не входит в `a-all` (легаси-ядро E1..E4), зовётся явно: `a-mem`.
+
 ## Как это работает
 - **E1** рабочая память (redis) до финализации; **E2** приземление на ярус (mongo policy/semantic);
   **E3** попадание в контекст жертвы (тем же лимитом, что система); **E4** всплытие в ответе.
@@ -23,8 +25,8 @@ State-меняющий (`mutates_state=True`): драйвер берёт lease; 
 
 ## Запуск
 ```
-python -m harness.orchestration.run a-mem
-python -m harness.orchestration.run a-mem mem--registers=benign,compliance
+./.venv/bin/python run.py a-mem
+./.venv/bin/python run.py a-mem mem--registers=benign,compliance
 ```
 Алиас: `run.py poison` (старое имя).
 

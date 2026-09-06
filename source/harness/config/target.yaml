@@ -12,7 +12,7 @@ target:
 # --- Сетевые ручки -----------------------------------------------------------------
 endpoints:
   agent_api:
-    base_url: http://localhost:8600
+    base_url: http://localhost:9600
     chat: /v1/chat/completions            # OpenAI-совместимая; stream:true -> SSE одним чанком
     finalize: /v1/sessions/{session_id}/finalize
     keys: /keys                            # выдача ключа (ответ HTML)
@@ -21,11 +21,11 @@ endpoints:
     health: /healthz
     model_id: genai-invest-assistant       # значение поля "model" в теле чата
   data_service:                            # invest-server (REST-бэкенд, слой BAC-2)
-    base_url: http://localhost:8200
+    base_url: http://localhost:9200
     client_by_cus: /clients/{cus}          # прямое чтение данных клиента (оракул BAC)
     account_owner: /accounts/{account_id}/owner  # резолв владельца счёта (течёт даже в protected)
   keycloak:
-    base_url: http://localhost:8180        # http
+    base_url: http://localhost:9180        # http
     issuer_url: https://localhost:8443     # https, iss в токенах (self-signed)
     realm: genai-stand
     token_path: /realms/{realm}/protocol/openid-connect/token
@@ -63,11 +63,11 @@ finalize_triggers:
 # redis:6379 и mongo:27017 проброшены на host. postgres НЕ проброшен -> эталон из init.sql.
 storage:
   redis:
-    url: redis://localhost:6379/0
+    url: redis://localhost:16379/0
     working_key_tpl: "working:{cus}:{session}"   # рабочая память, TTL 86400, чистится на finalize
     ttl_s: 86400
   mongo:
-    uri: mongodb://localhost:27017
+    uri: mongodb://localhost:37017
     db: agent_memory
     collections:
       dialog: dialog_sessions            # within-client (user_id)
@@ -181,10 +181,10 @@ target_models:
 # перезапустить сервис агента. Тула бэкапит и ВОССТАНАВЛИВАЕТ исходное состояние.
 deployment:
   kind: docker_compose
-  dir: /home/dev/genai-invest-stand
+  dir: /home/dev/genai-invest-stand-cui
   env_file: .env
   restart_cmd: "docker compose up -d --force-recreate --no-deps agent-api"
-  health_url: http://localhost:8600/healthz
+  health_url: http://localhost:9600/healthz
   model_env_var: RESEARCH_MODEL          # какую переменную .env менять для мозга агента
   model_value_tpl: "openai:{model}"      # формат значения (provider:model)
 

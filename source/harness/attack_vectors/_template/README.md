@@ -15,9 +15,9 @@ TODO: канал (data-layer / agent-mediated / finalize→память / …), 
 
 ## Запуск
 ```
-python -m harness.orchestration.run a-<name>
-python -m harness.orchestration.run a-<name> <name>--attempts=8
-python -m harness.orchestration.run --list
+./.venv/bin/python run.py a-<name>
+./.venv/bin/python run.py a-<name> <name>--attempts=8
+./.venv/bin/python run.py --list
 ```
 
 ## Что кладёт в отчёт

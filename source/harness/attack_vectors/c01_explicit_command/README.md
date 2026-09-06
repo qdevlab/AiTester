@@ -12,9 +12,9 @@
 через `ctx.cfg`. Ноль литералов стенда.
 
 ## Параметры
-См. `params.yaml`. Override: `c01_explicit_command--attempts=12`, `--trigger=chat_word`, `--turns=[...]`.
+См. `params.yaml`. Override: `c01_explicit_command--attempts=12`, `c01_explicit_command--trigger=chat_word`, `c01_explicit_command--turns=[...]`.
 
-## Запуск (после появления ядра плагина)
+## Запуск
 ```
 python run.py a-c01_explicit_command
 python run.py --list
@@ -23,4 +23,4 @@ python run.py --list
 ## Что кладёт в отчёт
 `report__c01_explicit_command.{json,md}`. Находка `F-C01-EXPLICIT-WRITE`, класс `within-user`,
 доля приземления + Wilson-CI. Таксономия: OWASP ASI06 / LLM01, ATLAS AML.T0051 (release 2026.08).
-Источник: submission `catalog/CATALOG.md` §TC-C01 (MPBench Explicit Command Insertion).
+Источник: submission `catalog/CATALOG.md` (внешний submission-каталог, вне репозитория) §TC-C01 (MPBench Explicit Command Insertion).

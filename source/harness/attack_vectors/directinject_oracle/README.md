@@ -9,7 +9,7 @@ winners → корпус. `active=False` → зовётся явно `a-directin
 
 ## Запуск
 ```
-python -m harness.orchestration.run a-directinject_oracle
-python -m harness.orchestration.run a-directinject_oracle directinject_oracle--attempts=12
+./.venv/bin/python run.py a-directinject_oracle
+./.venv/bin/python run.py a-directinject_oracle directinject_oracle--attempts=12
 ```
 `summary.search` — средние награды по arms + top_arm. Полный дизайн петли: `../docinject/ORACLE_LOOP.md`.

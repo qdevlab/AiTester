@@ -9,7 +9,7 @@
 > **Систематический пруф из логов прогона** (все дословно ушедшие запросы, ответы агента,
 > финализация и вердикт оракула по каждой попытке E1..E4) собирается автоматически:
 > `./.venv/bin/python run.py poison-proof [--run <id>]` → `output/POISON_PROOF.md`
-> (и `output/runs/<id>/poison_proof.md`). Ниже — курируемый разбор одной попытки; полная
+> (и `output/runs/<id>/proof.md`). Ниже — курируемый разбор одной попытки; полная
 > доказательная база с реальными запросами — в сгенерированном отчёте.
 
 ## Итог
@@ -72,13 +72,13 @@ global даёт compliance-формулировка.
 
 ```bash
 # 1. Убедиться, что общий ярус чист
-./.venv/bin/python -m harness.orchestration.run mem
+./.venv/bin/python run.py mem
 
 # 2. Посадить правило и финализировать (полный поизон-таск или ручные curl из repro)
-./.venv/bin/python -m harness.orchestration.run repro   # печатает готовые curl, секция F-POISON
+./.venv/bin/python run.py repro   # печатает готовые curl, секция F-POISON
 
 # 3. Проверить, куда легла метка: policy = cross-tenant, semantic = within-user
-./.venv/bin/python -m harness.orchestration.run mem --marker ZOO-PROOF1
+./.venv/bin/python run.py mem --marker ZOO-PROOF1
 
 # 4. Прочитать агента КАК ДРУГОЙ клиент (напр. 1002) — метка должна всплыть в ответе
 #    (curl к /v1/chat/completions с ключом 1002; шаблон в выводе repro)
@@ -92,6 +92,6 @@ global даёт compliance-формулировка.
 Метка с префиксом `ZOO-` снимается штатной изоляцией:
 
 ```bash
-./.venv/bin/python -m harness.orchestration.run mem            # проверить, что осталось
-# любой таск (bac/poison/chain) на старте вызывает purge_all_canaries и чистит ZOO-*/CANARY-*
+./.venv/bin/python run.py mem            # проверить, что осталось
+# memory-таск (poison/chain) на старте вызывает purge_all_canaries и чистит ZOO-*/CANARY- (bac — read-only, не чистит)
 ```

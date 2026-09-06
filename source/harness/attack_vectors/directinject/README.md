@@ -24,4 +24,4 @@
 ## Находки
 `F-DIRECTINJECT-GLOBAL` (critical, cross-tenant), `F-DIRECTINJECT-USER` (high). Успех = маркер лёг в
 ярус (grey-box) ИЛИ всплыл в новом чате (behavioral). Отчёт `report__directinject.{json,md}`.
-Без oracle-in-the-loop (open-loop) — см. `docinject_oracle` для управляемого поиска.
+Без oracle-in-the-loop (open-loop) — см. `directinject_oracle` (прямой двойник) для управляемого поиска.

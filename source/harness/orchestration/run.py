@@ -503,12 +503,13 @@ _OVR = re.compile(r"^([A-Za-z0-9_]+)--(.+)$")    # override: bac--max_turns=6
 
 
 def _split_vector_args(argv):
-    """Разбор новой грамматики. -> (selected|None, overrides, list_mode, run_sel, new).
+    """Разбор новой грамматики. -> (selected|None, overrides, list_mode, run_sel, new, report).
     selected=None, если не было ни одного a-* (тогда старый argparse-путь для back-compat).
     a-all -> ['*']. overrides={vector:{key:val}}; 'vec--flag' без '=' -> True.
-    --new -> свежая папка прогона; --run <имя>/--run=<имя> -> именованная кампания (одна папка)."""
+    --new -> свежая папка прогона; --run <имя>/--run=<имя> -> именованная кампания (одна папка);
+    --report -> собрать VULN_REPORT сразу после прогона (как отдельный run.py report)."""
     selected, overrides, list_mode, saw = [], {}, False, False
-    run_sel, new = None, False
+    run_sel, new, report = None, False, False
     i = 0
     while i < len(argv):
         tok = argv[i]
@@ -516,6 +517,8 @@ def _split_vector_args(argv):
             list_mode = True
         elif tok == "--new":
             new = True
+        elif tok in ("--report", "--report-now"):
+            report = True
         elif tok == "--run":
             if i + 1 < len(argv):
                 run_sel = argv[i + 1]
@@ -536,7 +539,7 @@ def _split_vector_args(argv):
             k, sep, v = m.group(2).partition("=")
             overrides.setdefault(m.group(1), {})[k] = v if sep else True
         i += 1
-    return (selected if saw else None), overrides, list_mode, run_sel, new
+    return (selected if saw else None), overrides, list_mode, run_sel, new, report
 
 
 def cmd_list(cfg):
@@ -560,6 +563,7 @@ def cmd_list(cfg):
             print(f"     {name}--{k}={spec.get('default')}   {('# ' + desc) if desc else ''}")
     print("\nЗапуск: a-<name> [a-<name> ...] | a-all (все) | a-all-nowrapper (без обёрток [wrapper])")
     print("        override: <name>--<key>=<value>   ·   папка прогона: --run <имя> / --new / new / where")
+    print("        отчёт сразу: добавь --report  ·  отдельно: run.py report")
     return 0
 
 
@@ -709,7 +713,7 @@ def _aggregate_run(parent, cfg):
         print(f"coverage не записался: {type(e).__name__}: {e}")
 
 
-def cmd_vectors(cfg, selected, overrides, run_sel=None, new=False):
+def cmd_vectors(cfg, selected, overrides, run_sel=None, new=False, report=False):
     """Generic-драйвер: единый жизненный цикл для всех выбранных векторов (заменяет if/elif).
     ОДНА папка прогона: запоминается (CURRENT) и переиспользуется следующими вызовами и ДРУГИМИ
     агентами (каждый пишет свой модуль в свою подпапку -> без коллизий). --new/--run управляют папкой.
@@ -755,7 +759,11 @@ def cmd_vectors(cfg, selected, overrides, run_sel=None, new=False):
                               finished=time.strftime("%Y-%m-%d %H:%M:%S"))
     except Exception as e:
         print(f"манифест (финиш) не записан: {type(e).__name__}: {e}")
-    print(f"прогон: {parent.dir}/ (модули в подпапках)  ·  отчёт: run.py report")
+    if report:                                            # --report -> VULN_REPORT сразу по этой папке
+        print("== REPORT ==", "сборка отчёта по прогону:", parent.run_id)
+        cmd_report(cfg, run_sel=parent.run_id)
+    else:
+        print(f"прогон: {parent.dir}/ (модули в подпапках)  ·  отчёт: run.py report")
     return 0
 
 
@@ -771,11 +779,11 @@ def main(argv=None):
     _load_env()
     cfg = load()
     argv = list(sys.argv[1:] if argv is None else argv)
-    selected, overrides, list_mode, run_sel, new = _split_vector_args(argv)
+    selected, overrides, list_mode, run_sel, new, report = _split_vector_args(argv)
     if list_mode:
         return cmd_list(cfg)
     if selected is not None:                      # была грамматика a-* -> generic-драйвер
-        return cmd_vectors(cfg, selected, overrides, run_sel=run_sel, new=new)
+        return cmd_vectors(cfg, selected, overrides, run_sel=run_sel, new=new, report=report)
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["smoke", "bac", "bac-proof", "poison", "poison-proof",
                                     "llm-repro", "models", "chain", "repro", "mem", "all", "report",

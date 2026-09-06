@@ -1,6 +1,6 @@
 # docinject — TODO
 
-## Oracle-in-the-loop (P0, приоритет) — режим `search=oracle`
+## Oracle-in-the-loop (P0) — СДЕЛАНО (вектор `docinject_oracle`, не режим `search`)
 Замкнуть вердикт state-оракула в цикл генерации (сейчас open-loop: фикс-профили × attempts).
 
 - **Награда из оракула** (веса в конфиге `docinject.reward`): `refused&не легло −0.2 · E1 +0.1 ·
@@ -13,8 +13,8 @@
   (`Attacker.is_refusal` И маркер не лёг) → штраф arm + сдвиг оси к менее наглой (Crescendo-backtrack).
 - **Две фазы:** SEARCH (найти лучший arm) → CONFIRM (топ-arm × `confirm_n` → доля+Wilson-CI);
   `findings()` строит вердикт по CONFIRM.
-- **Корпус (M2S):** arm с `E2_global|resurf_victim` → `corpus.record("docinject_win", {...})`; при
-  старте oracle-режима подтягивать `corpus.templates("docinject_win")` как приоритетные arms.
+- **Корпус (M2S):** arm с `E2_global|resurf_victim` → `corpus.record("docinject_oracle_win", {...})`; при
+  старте oracle-режима подтягивать `corpus.templates("docinject_oracle_win")` как приоритетные arms.
 - Реализация — планировщик поверх готового `_one()`; `search=fixed` (дефолт) не трогать. Инварианты:
   config-driven, вердикт за оракулом, failsafe, отчёты не ломать.
 

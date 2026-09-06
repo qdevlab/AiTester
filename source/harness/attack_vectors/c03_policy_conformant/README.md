@@ -13,9 +13,9 @@
 через `ctx.cfg`. Ноль литералов стенда.
 
 ## Параметры
-См. `params.yaml`. Override: `c03_policy_conformant--attempts=12`, `--baseline_attempts=5`, `--turns=[...]`.
+См. `params.yaml`. Override: `c03_policy_conformant--attempts=12`, `c03_policy_conformant--baseline_attempts=5`, `c03_policy_conformant--turns=[...]`.
 
-## Запуск (после появления ядра плагина)
+## Запуск
 ```
 python run.py a-c03_policy_conformant
 python run.py --list
@@ -24,4 +24,4 @@ python run.py --list
 ## Что кладёт в отчёт
 `report__c03_policy_conformant.{json,md}`. Находка `F-C03-POLICY-CONFORMANT`, класс `poison-global`,
 severity critical при ненулевой доле, доля + Wilson-CI, base_rate. Таксономия: OWASP ASI06 / LLM01,
-ATLAS AML.T0080 (release 2026.08). Источник: submission `catalog/CATALOG.md` §TC-C03.
+ATLAS AML.T0080 (release 2026.08). Источник: submission `catalog/CATALOG.md` (внешний submission-каталог, вне репозитория) §TC-C03.

@@ -1,14 +1,14 @@
 # NOTES — карта цели (Фаза 0)
 
-Построена из `../customer_info.md`, сверена с кодом стенда (read-only). Машинная версия —
+Построена из `../../docs/customer_info.md`, сверена с кодом стенда (read-only). Машинная версия —
 `config/target.yaml`; здесь — человекочитаемая карта для навигации.
 
 ## Ручки и способ доступа
-- **Точка входа** — agent-api `:8600`, OpenAI-совместимая `/v1/chat/completions`
+- **Точка входа** — agent-api `:9600`, OpenAI-совместимая `/v1/chat/completions`
   (bearer `sk-genai-…`, один ключ = один `cus`). Поля поверх OpenAI: `auth_mode`, `session_id`.
 - **Финализация** — `POST /v1/sessions/{sid}/finalize` ИЛИ слово `finalize` в чат (два канала).
-- **Данные** — invest-server `:8200` (`/clients/{cus}`, `/accounts/{id}/owner`) — оракул BAC.
-- **IAM** — Keycloak `:8180`/`:8443`, realm `genai-stand`, клиенты `client1001…1005`.
+- **Данные** — invest-server `:9200` (`/clients/{cus}`, `/accounts/{id}/owner`) — оракул BAC.
+- **IAM** — Keycloak `:9180`/`:8443`, realm `genai-stand`, клиенты `client1001…1005`.
 - **Ключи** — headless: Keycloak DAG (`streamlit-ui`) → `POST /keys` с `X-Forwarded-Access-Token`.
 
 ## Ярусы памяти и область видимости

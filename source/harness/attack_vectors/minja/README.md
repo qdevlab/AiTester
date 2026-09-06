@@ -31,8 +31,8 @@ Config-driven (attacker/victim из `hypotheses.H3-poison-global`, цель из
 
 ## Запуск
 ```
-python -m harness.orchestration.run a-minja
-python -m harness.orchestration.run a-minja minja--attempts=4 minja--trigger=chat_word
+./.venv/bin/python run.py a-minja
+./.venv/bin/python run.py a-minja minja--attempts=4 minja--trigger=chat_word
 ```
 ВНИМАНИЕ: каждая попытка = много `finalize` (cold + все ранги лестницы), суммаризатор медленный →
 прогон идёт минуты. Для смоука ставь `minja--attempts=1`.

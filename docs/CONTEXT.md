@@ -4,6 +4,8 @@
 его целиком, и ты восстановишь весь контекст: что это, что сделано, как устроено, как продолжить.
 Дата актуальности: **2026-09-04**.
 
+> **Статус (2026-09-06).** Это исторический хэндофф прототипа-предшественника **genai-harness**. Актуальный проект — **`aitest_cui`** (`/home/dev/aitest_cui`): модульные векторы `attack_vectors/` (грамматика `a-<name>`, флаг `--report`), стенд **genai-cui** на портах 9xxx (agent 9600, data 9200, keycloak 9180, redis 16379, mongo 37017). Актуальные точки входа: `README.md`, `docs/ARCHITECTURE.md`, `docs/ATTACK_VECTORS.md`; последние находки — `output/runs/bigtest_2026-09-05/VULN_REPORT.md` (13 подтверждённых: 3 critical, 9 high, 1 medium). Ниже — исходный контекст genai-harness как история.
+
 ---
 
 ## 0. TL;DR
@@ -67,8 +69,7 @@ cd ~/genai-harness && set -a && . ./.env && set +a
 ./.venv/bin/python /tmp/.../run_target_matrix_full.py     # матрица целевых (или target_matrix.__main__)
 ```
 
-**Ключ OpenRouter — ВАЖНО:** ключ ОДИН (в `.env` харнесса И в `.env` стенда — один и тот же
-`sk-or-v1-3302b...29e188`). Через него идёт ВСЁ: и харнесс (attacker/judge), и мозг агента-цели.
+**Ключ OpenRouter — ВАЖНО:** ключ ОДИН (в `.env` харнесса И в `.env` стенда — один и тот же ключ, не коммитить). Через него идёт ВСЁ: и харнесс (attacker/judge), и мозг агента-цели.
 На 04.09 израсходовано ~$5.4 из $63, осталось ~$57.6 (gpt-5-mini дёшев). Лимита на ключе нет.
 
 ---
@@ -141,7 +142,7 @@ attacker (LLM-мутатор), isolation (canary/reset), runlog.
 
 ## 8. Как продолжить после обновления Claude Code
 
-1. Открой этот файл (`~/genai-harness/CONTEXT.md`) — он и есть контекст.
+1. Открой этот файл (`docs/CONTEXT.md` в `aitest_cui`) — исторический контекст; актуальные точки входа см. в баннере вверху.
 2. Проверь стенд: `docker compose -f ~/genai-invest-stand/docker-compose.yml ps` → если лёг,
    `docker compose up -d`.
 3. Проверь тулу: `cd ~/genai-harness && set -a && . ./.env && set +a && ./.venv/bin/python -m

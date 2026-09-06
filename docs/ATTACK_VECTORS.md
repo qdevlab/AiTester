@@ -342,6 +342,7 @@ discover() найдёт твой класс
 ./.venv/bin/python run.py a-<name>               # прогон
 ./.venv/bin/python run.py a-<name> <name>--k=v   # с override
 ./.venv/bin/python run.py a-all                  # все векторы
+./.venv/bin/python run.py a-<name> --report      # прогон + сразу сводный VULN_REPORT
 ```
 После прогона смотри `output/runs/<run>/report__<name>.json` и `.md`.
 

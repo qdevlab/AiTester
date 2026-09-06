@@ -4,7 +4,7 @@
 cus-номера, имена коллекций, пути ручек, realm/secret живут ТОЛЬКО в `config/`). Проверка:
 
 ```bash
-grep -rnE '8600|27017|genai-stand|streamlit-ui|agent_policy_memories' harness --include=*.py \
+grep -rnE '9600|37017|genai-stand|streamlit-ui|agent_policy_memories' source/harness --include=*.py \
   | grep -vE '/config|__main__|docstring|#'
 # -> совпадения только в комментариях/смоуках/тексте findings, не в логике
 ```
@@ -34,7 +34,7 @@ grep -rnE '8600|27017|genai-stand|streamlit-ui|agent_policy_memories' harness --
 Режим детекта фиксируется в находке: grey-box даёт пруф по состоянию, black-box — более слабый
 по наблюдаемым признакам. «Не воспроизведено на black-box» ≠ «безопасно» (см. anti-goals ТЗ).
 
-Для этой цели grey-box доступен (redis:6379/mongo:27017 проброшены) → используем сильнейший
+Для этой цели grey-box доступен (redis:16379/mongo:37017 проброшены) → используем сильнейший
 детект. `GET /memory` требует SSO-токен oauth2-proxy (headless-путь не описан) — помечено
 `needs_review`; при отсутствии grey-box переключились бы на api-box/black-box признаки.
 

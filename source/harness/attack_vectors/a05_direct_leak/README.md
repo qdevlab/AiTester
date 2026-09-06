@@ -15,9 +15,9 @@ Read-only: память не пишется, стенд не сбрасывае�
 `fingerprint_fields`, `attacker_default`). Запросы не называют жертву — ноль литералов цели.
 
 ## Параметры
-См. `params.yaml`. Override: `a05_direct_leak--attempts=8`, `--prompts=[...]`.
+См. `params.yaml`. Override: `a05_direct_leak--attempts=8`, `a05_direct_leak--prompts=[...]`.
 
-## Запуск (после появления ядра плагина)
+## Запуск
 ```
 python run.py a-a05_direct_leak
 python run.py --list
@@ -26,4 +26,4 @@ python run.py --list
 ## Что кладёт в отчёт
 `report__a05_direct_leak.{json,md}`. Находка `F-A05-DIRECT-LEAK`, класс `bac`, доля утечки в
 vulnerable + Wilson-CI, парный пруф vulnerable↔protected. Таксономия: OWASP ASI06 / LLM02,
-ATLAS AML.T0057 (release 2026.08). Источник: submission `catalog/CATALOG.md` §TC-A05.
+ATLAS AML.T0057 (release 2026.08). Источник: submission `catalog/CATALOG.md` (внешний submission-каталог, вне репозитория) §TC-A05.

@@ -31,7 +31,7 @@
 
 ```bash
 python3 -m venv .venv
-./.venv/bin/python -m pip install -r requirements.txt   # или: pymongo redis requests pyyaml weasyprint markdown
+./.venv/bin/python -m pip install pymongo redis requests pyyaml weasyprint markdown   # зависимости (requirements.txt в репо нет)
 echo "OPENROUTER_API_KEY=sk-or-..." > .env               # ключ подхватится автоматически
 ```
 - **Стенд** должен быть поднят (mongo/redis/agent/data-service); адреса/порты — в `config/target.yaml`.
@@ -62,6 +62,10 @@ echo "OPENROUTER_API_KEY=sk-or-..." > .env               # ключ подхва
 ./.venv/bin/python run.py a-all        # 1) все модули -> runs/<прогон>/<module>/report__<name>.{json,md}
 ./.venv/bin/python run.py report       # 2) свод ПО ЭТОМУ прогону -> output/VULN_REPORT.{md,pdf}
 ```
+Или одной командой — флаг `--report` собирает свод сразу после прогона (эквивалент шага 2 по этой же папке):
+```bash
+./.venv/bin/python run.py a-all --report   # прогон всех модулей + сразу VULN_REPORT.{md,pdf}
+```
 Неактивные векторы (см. таблицу) в `a-all` не входят — зовите явно (`a-mem`, `a-chain`, `a-docinject_oracle`, `a-directinject_oracle`).
 
 ### Одна папка прогона (важно: несколько агентов пишут в неё же)
@@ -78,6 +82,7 @@ echo "OPENROUTER_API_KEY=sk-or-..." > .env               # ключ подхва
 - **`run.py new [--run <имя>]`** — начать новую папку (свежий штамп даты или именованная кампания) и запомнить.
 - **`--run <имя>`** на `a-*`/`report` — явно адресовать папку (несколько агентов дают ОДНО имя → пишут в одну папку, без гонок).
 - **`--new`** на `a-*` — форсить свежую папку для этого прогона.
+- **`--report`** на `a-*` — собрать сводный отчёт сразу после прогона (эквивалент отдельного `run.py report` по этой папке).
 - Без флагов `a-*` берёт запомненную папку (`CURRENT`); если её нет — заводит свежую и запоминает.
 - `report` пишет отчёт **в саму папку прогона** и копию в общий `output/VULN_REPORT.{md,pdf}` («последний»).
 
@@ -185,7 +190,7 @@ output/VULN_REPORT.md / .pdf        # копия отчёта ПОСЛЕДНЕГ
 Отчётник отлаживается отдельно: принимает **любую папку** с `report__*.json` и пишет свод в неё.
 ```bash
 ./.venv/bin/python run.py report --dir <папка> [--model anthropic/claude-opus-4.6]
-./.venv/bin/python -m harness.report.synthesize <папка> [--model ...] [--no-pdf] [--to-output]
+PYTHONPATH=source ./.venv/bin/python -m harness.report.synthesize <папка> [--model ...] [--no-pdf] [--to-output]
 ```
 - **`test_info.json`** в папке прогона — тех-манифест: метка «папка рабочая» + `command`/`started`/
   `finished`/`target`/`modules`. Пишется оркестратором (старт+финиш), читается отчётником в шапку.
@@ -196,7 +201,7 @@ output/VULN_REPORT.md / .pdf        # копия отчёта ПОСЛЕДНЕГ
 2. **Уязвимости** — сведённые (дедуп по классу), каждая: что это + impact простыми словами, чем
    подтверждено (детерминированный оракул, доля+Wilson-CI), воспроизведение, таксономия OWASP,
    **какие модули подтвердили**.
-3. **Сводка по всем модулям** — детерминированная таблица «модуль → находки» (все 20, ничего не теряется).
+3. **Сводка по всем модулям** — детерминированная таблица «модуль → находки» (все модули прогона, ничего не теряется).
 
 ### Прокладки (на будущее)
 Форвард-совместим с модулями-прокладками: если у модуля отчёт пишет СТОРОННЯЯ LLM, он кладёт текст в

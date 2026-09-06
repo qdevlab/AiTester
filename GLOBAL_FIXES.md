@@ -30,7 +30,7 @@ stand:
 
 `gpt-5-mini` через OpenRouter: с reasoning отдаёт пустой контент (reasoning съедает `max_tokens`,
 `finish_reason=length`), а с `reasoning.enabled=false` → HTTP 400 «Reasoning is mandatory». Поэтому
-слот `report` по умолчанию — `gpt-4o-mini` (не-reasoning, проверен). **Финал:** если нужна сильная
+слот `report` по умолчанию — `gpt-4o` (не-reasoning, проверен); `gpt-4o-mini` — аварийный фолбэк. **Финал:** если нужна сильная
 reasoning-модель для отчёта — поднять `max_tokens` до ~4000 и НЕ выключать reasoning, либо взять
 `claude-sonnet-5`. Сейчас фолбэк в `llm_report.py` сам откатывается на рабочую модель.
 

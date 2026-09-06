@@ -13,9 +13,9 @@
 Канарейка {marker} остаётся кодом на любом языке.
 
 ## Параметры
-См. `params.yaml`. Override: `g02_multilingual--attempts_per_variant=5`, `--variants=[...]`.
+См. `params.yaml`. Override: `g02_multilingual--attempts_per_variant=5`, `g02_multilingual--variants=[...]`.
 
-## Запуск (после появления ядра плагина)
+## Запуск
 ```
 python run.py a-g02_multilingual
 python run.py --list
@@ -24,4 +24,4 @@ python run.py --list
 ## Что кладёт в отчёт
 `report__g02_multilingual.{json,md}`. Находка `F-G02-MULTILINGUAL`, класс `poison-global`, доля +
 Wilson-CI, разбивка по языкам в notes. Таксономия: OWASP ASI06 / LLM01, ATLAS AML.T0051 (release
-2026.08). Источник: submission `catalog/CATALOG.md` §TC-G02.
+2026.08). Источник: submission `catalog/CATALOG.md` (внешний submission-каталог, вне репозитория) §TC-G02.
