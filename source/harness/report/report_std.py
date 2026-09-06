@@ -23,7 +23,7 @@ def write(run, vector, summary, findings, cfg):
 def _md(vector, doc, run):
     a = doc["attempts_summary"]
     lines = [f"# Отчёт вектора: {doc['title']}  (`{doc['vector']}`)", "",
-             f"Цель: {doc['target']}  ·  прогон: {doc['run_id']}  ·  {doc['generated']}",
+             f"Цель: {doc['target']}  ·  сеанс: {doc['run_id']}  ·  {doc['generated']}",
              f"Меняет стейт стенда: {'да' if doc['mutates_state'] else 'нет'}  ·  "
              f"находок: {a['findings']} (воспроизведено: {a['demonstrated']})", ""]
     tx = doc.get("taxonomy") or {}

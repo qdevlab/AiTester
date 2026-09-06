@@ -105,9 +105,18 @@ def _run_meta_md(scope_dir):
     if not m:
         return ""
     return (f"_**Запуск:** `{m.get('command', '?')}`  ·  **Начало:** {m.get('started', '?')}  ·  "
-            f"**Конец:** {m.get('finished', '—')}  ·  **Прогон:** {m.get('run_id', '?')}  ·  "
+            f"**Конец:** {m.get('finished', '—')}  ·  **Сеанс:** {m.get('run_id', '?')}  ·  "
             f"**Длительность:** {_dur(m.get('started'), m.get('finished'))}"
             f"{'  ·  СТАТУС: ' + m.get('status') if m.get('status') and m.get('status') != 'done' else ''}._\n\n")
+
+
+def _modules_list_section(reports):
+    """Список всех модулей атак сеанса — в начало отчёта."""
+    if not reports:
+        return ""
+    names = sorted(reports.keys())
+    return ("## Модули атак в сеансе (" + str(len(names)) + ")\n\n"
+            + ", ".join(f"`{n}`" for n in names) + "\n")
 
 
 def build(run, cfg, model=None, scope_dir=None):
@@ -119,7 +128,7 @@ def build(run, cfg, model=None, scope_dir=None):
     run_meta = _run_meta_md(scope_dir)
     if not payload:
         return (f"# Отчёт по уязвимостям — {tgt}\n\n{run_meta}Подтверждённых уязвимостей не найдено "
-                f"в доступных прогонах модулей.\n"), src, False
+                f"в доступных сеансах модулей.\n"), src, False
 
     slot = cfg.slot("reporter")
     prm = slot.get("params", {})
@@ -141,7 +150,7 @@ def build(run, cfg, model=None, scope_dir=None):
               f"Модулей: {len(reports)}. Источники: {src_names}. "
               f"Вердикт — детерминированный state-оракул (дифф БД/сервиса), не текст-судья._\n\n")
     # Разделы строятся КОДОМ (не на откуп LLM): тулы + запуск/тайминг модулей + пер-модульная сводка.
-    sections = [header + body, _repro_section(reports), _tools_section(reports),
+    sections = [header + _modules_list_section(reports), body, _repro_section(reports), _tools_section(reports),
                 _modules_meta_section(reports, scope_dir), _module_table(reports)]
     return "\n\n".join(s for s in sections if s and s.strip()), src, used_llm
 
@@ -288,7 +297,7 @@ def _repro_section(reports):
     if not rows:
         return ""
     lines = ["## Как проводилась атака (реальные вводы в модель)", "",
-             "_Пошагово из логов прогона: что подавалось агенту на вход, как он ответил, что "
+             "_Пошагово из логов сеанса: что подавалось агенту на вход, как он ответил, что "
              "изменилось в памяти. По этому разделу видно, что чинить._", ""]
     for v, d, s in rows:
         lines.append(f"### {d.get('title') or v}")
@@ -371,7 +380,7 @@ def _module_table(reports):
         elif d.get("narrative"):          # внешний атакующий модуль: выполнен, подтверждений нет
             found = "внешний атакующий модуль выполнен; подтверждено 0 (см. раздел выше)"
         else:
-            found = "не воспроизведено в доступном прогоне"
+            found = "не воспроизведено в доступном сеансе"
         lines.append(f"| `{v}` | {d.get('title', '')} | {found} |")
     return "\n".join(lines)
 
