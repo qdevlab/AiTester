@@ -260,7 +260,7 @@ def _attack_story(rec):
         obs.append("маркер воспроизведён в ответе жертве")
     return {"attacker": rec.get("attacker"), "victim": rec.get("victim"), "marker": rec.get("marker"),
             "channel": rec.get("channel") or rec.get("framing"), "scope": rec.get("scope"),
-            "sent": sent, "replies": replies, "observed": obs}
+            "sent": sent, "replies": replies, "observed": obs, "trace_path": rec.get("trace_path")}
 
 
 _FIX_BY_CLASS = {
@@ -279,6 +279,10 @@ def _repro_section(reports):
             continue
         story = _attack_story(_demonstrated_attempt(os.path.dirname(p)))
         if story and (story["sent"] or story["observed"]):
+            tp = story.get("trace_path")
+            if tp:
+                run_root = os.path.dirname(os.path.dirname(p))     # output/runs/<штамп>
+                story["trace_rel"] = os.path.relpath(tp, run_root) if os.path.isabs(tp) else tp
             rows.append((v, d, story))
     if not rows:
         return ""
@@ -318,6 +322,8 @@ def _repro_section(reports):
         fix = _FIX_BY_CLASS.get((d.get("findings", [{}])[0] or {}).get("type"))
         if fix:
             lines.append(f"**Что чинить:** {fix}")
+        if s.get("trace_rel"):
+            lines.append(f"**Файл трассировки:** `{s['trace_rel']}`")
         lines.append("")
     return "\n".join(lines)
 
