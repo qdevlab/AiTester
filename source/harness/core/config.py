@@ -105,6 +105,16 @@ class Config:
             "stale_seconds": int(r.get("stale_seconds", 300)),
         }
 
+    def tracer_file(self):
+        """Путь к JSONL стороннего трассировщика (target.tracer.file). Пусто/нет секции -> None."""
+        t = self.target.get("tracer", {}) or {}
+        return (t.get("file") or "").strip() or None
+
+    def tracer_map(self):
+        """Для TraceAnalyzer: target-фильтр + карта метод->ярус (target.tracer). None -> дефолт в классе."""
+        t = self.target.get("tracer", {}) or {}
+        return {"target": t.get("target"), "landing_map": t.get("landing_map")}
+
     def system_description(self):
         """Пользовательское описание тестируемой системы (target.description) — контекст для
         морферов/атакующих моделей, чтобы формулировки были тематически верны на ЛЮБОМ стенде."""

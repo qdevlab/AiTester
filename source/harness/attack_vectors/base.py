@@ -27,6 +27,7 @@ class VectorContext:
     _client: Any = None
     _attacker: Any = None
     _judge: Any = None
+    _tracer: Any = None
 
     # ленивые сервисы — нужны нативным векторам; мигрированные строят своё внутри run_mvp
     def client(self):
@@ -46,6 +47,16 @@ class VectorContext:
             from ..oracle.judge_llm import Judge
             self._judge = Judge(self.run.dir, self.cfg)
         return self._judge
+
+    def tracer(self):
+        # опциональный сервис: TraceAnalyzer поверх файла стороннего трейсера
+        # (get_canary()==None -> трейсер не пишет; модуль падает на грей-бокс)
+        if self._tracer is None:
+            from ..oracle.tracer import TraceAnalyzer
+            tm = self.cfg.tracer_map()
+            self._tracer = TraceAnalyzer(path=self.cfg.tracer_file(),
+                                         landing_map=tm.get("landing_map"), target=tm.get("target"))
+        return self._tracer
 
 
 @contextlib.contextmanager

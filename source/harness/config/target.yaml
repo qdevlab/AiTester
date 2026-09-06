@@ -89,6 +89,12 @@ storage:
     episodic: 10
     semantic: 20
 
+# --- Трассировщик памяти (внешний проект; ТОЛЬКО чтение его JSONL-файла) -------------
+tracer:
+  file: /home/dev/yaml-memory-tracer/stand-traces/memory-traces.jsonl   # пусто/нет секции -> трейсер выключен
+  target: app.memory.store.MemoryStore                                  # фильтр спанов по полю target события
+  # landing_map можно переопределить тут; по умолчанию берётся из oracle/tracer.py (под genai-cui)
+
 # --- Память / scope ----------------------------------------------------------------
 memory_scopes:
   global:
