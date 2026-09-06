@@ -12,6 +12,8 @@ mutates_state=True -> драйвер берёт stand_lease вокруг run() (
 безопасно при параллельных агентах в общей папке прогона).
 """
 
+import json
+
 from ..report import findings as F
 from .base import AttackVector
 
@@ -30,9 +32,41 @@ class ToolVector(AttackVector):
         return {k: self.params[k] for k in self.ARG_KEYS
                 if k in self.params and self.params[k] not in (None, "")}
 
+    def _narrative(self, summary):
+        """Текст про РАБОТУ тулы для сводного отчёта (попадает даже при 0 подтверждённых находок):
+        отработала ли, QC-итог сильной LLM, вердикт самой тулы, сколько находок тула заявила /
+        подтвердил QC / отбраковано как ложноположительные. Это и есть «дифференциатор» в отчёте."""
+        rep = (summary or {}).get("llm_report") or {}
+        fs = rep.get("findings", []) or []
+        conf = sum(1 for f in fs if f.get("independent_assessment") == "confirmed")
+        fp = sum(1 for f in fs if f.get("independent_assessment") == "false_positive")
+        unc = sum(1 for f in fs if f.get("independent_assessment") == "uncertain")
+        tv = rep.get("tool_verdict")
+        tv = tv if isinstance(tv, str) else (json.dumps(tv, ensure_ascii=False) if tv else "")
+        p = [f"Внешняя тула **{self.name}**: status={summary.get('status')}, "
+             f"{summary.get('duration_s')}s, rc={summary.get('returncode')}"
+             + (", TIMEOUT" if summary.get("timed_out") else "") + "."]
+        p.append("ВАЖНО: по обёрткам нет детерминированного оракула (это текст-атаки) — вердикт ниже "
+                 "это ПРЕДПОЛОЖЕНИЕ второй LLM (QC перечитывает транскрипты), НЕ истина и не 'сильнее' "
+                 "судьи тулы; проверяемый факт — реальные ответы цели в пер-тульном отчёте report__"
+                 f"{self.name}.md.")
+        if rep.get("summary"):
+            p.append(f"Итог QC (предположение): {rep['summary']}")
+        if tv:
+            p.append(f"Вердикт самой тулы: {tv[:300]}")
+        p.append(f"Заявлено тулой находок: {len(fs)}; QC-предположительно подтверждено: {conf}; "
+                 f"QC считает ложноположительными (тула засчитала пробитие, но в транскрипте цель "
+                 f"отказала/уклонилась): {fp}" + (f"; неопределённо: {unc}" if unc else "") + ".")
+        return " ".join(p)
+
     def run(self, ctx):
         w = self.WRAPPER()
         summary = w.run(ctx.cfg, ctx.run.dir, args=self._args(), log=None)  # -> ctx.run.dir/<tool>/
+        try:
+            summary["narrative"] = self._narrative(summary)   # -> report_std -> synthesize (атрибуция тулы)
+            summary["source"] = self.name
+        except Exception:
+            pass
         try:
             rep = summary.get("llm_report") or {}
             ctx.run.attempt({"vector": self.name, "tool": self.name,

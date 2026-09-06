@@ -172,7 +172,7 @@ def standard_report(vector, summary, findings, cfg, run):
     """Строгая схема report__<name>.json: шапка + стандартные находки + сводка попыток."""
     std = [standard_finding(f, vector, summary) for f in findings]
     demonstrated = sum(1 for f in std if f["passed"])
-    return {
+    doc = {
         "schema": "attack_vector_report/1",
         "vector": getattr(vector, "name", ""),
         "title": getattr(vector, "title", "") or getattr(vector, "name", ""),
@@ -186,3 +186,9 @@ def standard_report(vector, summary, findings, cfg, run):
         "attempts_summary": {"findings": len(std), "demonstrated": demonstrated},
         "meta": {"hypotheses": list(getattr(vector, "hypotheses", ()) or ())},
     }
+    # Проброс narrative прокладок (обёртки внешних тул): сводка сторонней/QC-LLM попадает в
+    # синтез отчёта даже при 0 подтверждённых находок (synthesize._payload хук). source = чем сведено.
+    if isinstance(summary, dict) and summary.get("narrative"):
+        doc["narrative"] = summary["narrative"]
+        doc["source"] = summary.get("source") or getattr(vector, "name", "shim")
+    return doc

@@ -137,6 +137,8 @@ def _module_table(reports):
                 f"{f.get('finding_id')} [{f.get('severity')}]"
                 + (f" {f['rate']['successes']}/{f['rate']['n']}" if f.get('rate') else " (детерм)")
                 for f in conf)
+        elif d.get("narrative"):          # обёртка внешней тулы: отработала, но QC не подтвердил
+            found = "внешняя тула отработала; QC подтвердил 0 (детали — в разделе уязвимостей)"
         else:
             found = "не воспроизведено в доступном прогоне"
         lines.append(f"| `{v}` | {d.get('title', '')} | {found} |")
