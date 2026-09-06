@@ -105,7 +105,8 @@ def _run_meta_md(scope_dir):
     if not m:
         return ""
     return (f"_**Запуск:** `{m.get('command', '?')}`  ·  **Начало:** {m.get('started', '?')}  ·  "
-            f"**Конец:** {m.get('finished', '—')}  ·  **Прогон:** {m.get('run_id', '?')}"
+            f"**Конец:** {m.get('finished', '—')}  ·  **Прогон:** {m.get('run_id', '?')}  ·  "
+            f"**Длительность:** {_dur(m.get('started'), m.get('finished'))}"
             f"{'  ·  СТАТУС: ' + m.get('status') if m.get('status') and m.get('status') != 'done' else ''}._\n\n")
 
 
