@@ -286,8 +286,9 @@ def _repro_section(reports):
              "_Пошагово из логов прогона: что подавалось агенту на вход, как он ответил, что "
              "изменилось в памяти. По этому разделу видно, что чинить._", ""]
     for v, d, s in rows:
-        lines.append(f"### `{v}` — {d.get('title', '')}")
-        meta = [x for x in (f"атакующий: клиент {s['attacker']}" if s["attacker"] else "",
+        lines.append(f"### {d.get('title') or v}")
+        meta = [f"модуль: `{v}`"] + [x for x in (
+                            f"атакующий: клиент {s['attacker']}" if s["attacker"] else "",
                             f"жертва: клиент {s['victim']}" if s["victim"] else "",
                             f"маркер: **{s['marker']}**" if s["marker"] else "",
                             f"канал: {s['channel']}" if s["channel"] else "") if x]
@@ -335,7 +336,8 @@ def _tools_section(reports):
              "Проверяемый факт — реальные ответы цели (в отчёте модуля). В счёт подтверждённых "
              "уязвимостей не входят.", ""]
     for v, d in tools:
-        lines.append(f"### `{v}` — {d.get('title', v)}")
+        lines.append(f"### {d.get('title') or v}")
+        lines.append(f"_модуль: `{v}`_\n")
         lines.append(d.get("narrative", ""))
         fs = d.get("findings", []) or []
         if fs:

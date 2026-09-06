@@ -9,24 +9,36 @@ _CSS = """
 @page { size: A4; margin: 18mm 16mm; }
 body { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
        font-size: 10.5pt; line-height: 1.45; color: #1a1a1a; }
-h1 { font-size: 19pt; margin: 0 0 8pt; border-bottom: 2px solid #444; padding-bottom: 4pt; }
-h2 { font-size: 14pt; margin: 16pt 0 6pt; border-bottom: 1px solid #bbb; padding-bottom: 2pt; }
-h3 { font-size: 12pt; margin: 12pt 0 4pt; color: #b02020; }
-h4 { font-size: 11pt; margin: 10pt 0 3pt; }
+h1 { font-size: 19pt; margin: 0 0 10pt; color: #16324f;
+     border-bottom: 3px solid #2c5aa0; padding-bottom: 5pt; }
+/* Разделы (## ) — цветная плашка с левым акцентом, чтобы явно отделять блоки отчёта */
+h2 { font-size: 13.5pt; margin: 18pt 0 7pt; color: #163e6b;
+     background: #e9f0f8; border-left: 5px solid #2c5aa0;
+     padding: 5pt 8pt; border-radius: 0 3pt 3pt 0; }
+/* Уязвимость / блок модуля (### ) — красный акцент (как и было) */
+h3 { font-size: 12pt; margin: 13pt 0 4pt; color: #b02020;
+     border-left: 3px solid #b02020; padding-left: 7pt; }
+h4 { font-size: 11pt; margin: 10pt 0 3pt; color: #333; }
 p  { margin: 4pt 0; }
 ul, ol { margin: 4pt 0 4pt 4pt; padding-left: 14pt; }
 li { margin: 1pt 0; }
 strong { font-weight: bold; }
 em { color: #555; }
 code { font-family: "DejaVu Sans Mono", monospace; font-size: 9pt;
-       background: #f4f4f4; padding: 0 2pt; border-radius: 2pt; }
-pre { background: #f4f4f4; border: 1px solid #ddd; border-radius: 3pt; padding: 6pt;
-      font-family: "DejaVu Sans Mono", monospace; font-size: 8.5pt; white-space: pre-wrap; }
-table { width: 100%; border-collapse: collapse; margin: 6pt 0; font-size: 9pt; }
-th, td { border: 1px solid #bbb; padding: 3pt 5pt; text-align: left; vertical-align: top;
-         word-wrap: break-word; }
-th { background: #eef1f4; font-weight: bold; }
-tr:nth-child(even) td { background: #fafbfc; }
+       background: #f1f3f5; padding: 0 2pt; border-radius: 2pt; }
+/* Блок кода = РЕАЛЬНЫЙ ввод атаки в модель — янтарный акцент, чтобы бросался в глаза */
+pre { background: #fff8ec; border: 1px solid #f0d9a8; border-left: 4px solid #e0900a;
+      border-radius: 3pt; padding: 6pt 8pt; font-family: "DejaVu Sans Mono", monospace;
+      font-size: 8.5pt; white-space: pre-wrap; }
+pre code { background: transparent; padding: 0; }
+/* Ответы агента / цитаты — серый акцент */
+blockquote { margin: 5pt 0; padding: 3pt 8pt; border-left: 3px solid #9aa7b4;
+             background: #f7f9fb; color: #333; }
+table { width: 100%; border-collapse: collapse; margin: 6pt 0; font-size: 9pt; table-layout: fixed; }
+th, td { border: 1px solid #c4ccd4; padding: 3pt 5pt; text-align: left; vertical-align: top;
+         word-wrap: break-word; overflow-wrap: anywhere; }
+th { background: #dfe7f0; color: #163e6b; font-weight: bold; }
+tr:nth-child(even) td { background: #f6f8fb; }
 """
 
 
