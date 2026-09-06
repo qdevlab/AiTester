@@ -1,12 +1,15 @@
-# deepteam (обёртка софта)
+# deepteam (обёртка над внешним инструментом)
 
-Запускает нативный **deepteam** (`deepteam run`) в его venv, наведённый на нашу цель через
-callback-файл (`model_callback` → `/v1/chat/completions`). Симулятор атак и судья (deepeval) — наш
-OpenRouter (`OPENAI_BASE_URL`). Вывод сводит сильная LLM в наш стандарт (скептический QC).
+Запускает настоящий `deepteam` (`deepteam run`) в его собственном venv, нацеленный на нашу цель
+через callback-файл (`model_callback` обращается к `/v1/chat/completions`). Симулятор атак и судья
+(deepeval) — это наш OpenRouter (`OPENAI_BASE_URL`). Вывод сводит в наш стандартный формат сильная
+модель со скептической перепроверкой.
 
-- **Тип:** `is_wrapper=True` (в `a-all`, не в `a-all-nowrapper`). `mutates_state=True` → драйвер берёт `stand_lease`.
-- **Движок:** `source/harness/tool_wrappers/deepteam.py`. Модуль — прокладка `ToolVector` (`_toolbase.py`).
-- **Наведение/venv/модели:** из `config/target.yaml` + `config/models.yaml` (`generators.deepteam`).
+- **Тип:** `is_wrapper=True` (входит в `a-all`, но не в `a-all-nowrapper`). Меняет состояние стенда
+  (`mutates_state=True`), поэтому драйвер берёт `stand_lease`.
+- **Движок:** `source/harness/tool_wrappers/deepteam.py`. Сам модуль — тонкая прокладка `ToolVector`
+  (`_toolbase.py`).
+- **Наведение, venv и модели:** из `config/target.yaml` и `config/models.yaml` (`generators.deepteam`).
 
 ## Запуск
 ```bash
@@ -16,8 +19,11 @@ run.py a-deepteam deepteam--simulator=deepseek/deepseek-v4-flash
 ```
 
 ## Выход
-`runs/<прогон>/deepteam/report__deepteam.{json,md}` (наш стандарт, драйвер) — подхватывается
-`run.py report`. Сырой risk-assessment + QC — в `runs/<прогон>/deepteam/deepteam/`.
-Находка = `demonstrated` только при независимой QC-оценке `confirmed`.
+`runs/<прогон>/deepteam/report__deepteam.{json,md}` (наш стандарт, пишет драйвер) — его подхватывает
+`run.py report`. Сырой отчёт об оценке риска и результат перепроверки лежат в
+`runs/<прогон>/deepteam/deepteam/`. Находка считается показанной (`demonstrated`) только если
+независимая перепроверка дала `confirmed`.
 
-> QC-вердикт — **предположение вспомогательной модели, НЕ детерминированный оракул**; находки обёрток НЕ входят в список подтверждённых детерминированных уязвимостей стенда (его дают оракульные векторы: bac/docinject/directinject/chain/a05).
+> Вердикт перепроверки — это предположение вспомогательной модели, а не проверка по фактам; находки
+> обёрток не входят в список подтверждённых уязвимостей стенда (его дают векторы с проверкой по
+> фактам: bac, docinject, directinject, chain, a05).

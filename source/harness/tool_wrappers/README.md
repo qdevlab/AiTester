@@ -1,55 +1,68 @@
-# tool_wrappers — обёртки-раннеры внешних тул (часть комплексного инструмента)
+# tool_wrappers — обёртки для запуска внешних инструментов (часть общего инструмента)
 
-Единый контракт: оркестратор **payload-агностичен**. Он зовёт `wrapper.run(cfg, out_dir, args)`;
-обёртка сама делает всё остальное. Парсер под каждый формат вывода не пишем — сводит **сильная LLM**.
+Единый контракт: оркестратор не разбирается в форматах вывода. Он вызывает
+`wrapper.run(cfg, out_dir, args)`, а всё остальное обёртка делает сама. Отдельный разборщик под
+каждый формат вывода мы не пишем — вывод сводит сильная модель.
 
 ## Контракт обёртки (base.ToolWrapper)
 
 `wrapper.run(cfg, out_dir, args, log)`:
 1. создаёт `<out_dir>/<tool>/`;
-2. **чистит стенд** (команда из конфига; пока — `isolation.prepare_reset(full=True)`, см. `GLOBAL_FIXES.md` #1);
-3. запускает тулу в ЕЁ venv, наведённую на нашу цель, с output-folder = подпапка;
-4. **безопасно ждёт** (таймаут, сырой вывод → `stdout.log`/`stderr.log`/`meta.json`, НЕ роняет оркестратор);
-5. **опц.** (`args.llm_report=True`): сильная LLM читает файлы вывода и пишет `report__<tool>.{json,md}`
-   в НАШЕМ формате (severity/taxonomy OWASP).
+2. чистит стенд (командой из настроек; пока это `isolation.prepare_reset(full=True)`, см.
+   `GLOBAL_FIXES.md` #1);
+3. запускает инструмент в его собственном venv, наведя на нашу цель, и складывает результат в
+   подпапку;
+4. аккуратно ждёт завершения (с таймаутом), пишет сырой вывод в `stdout.log`, `stderr.log` и
+   `meta.json` и не роняет оркестратор при сбое;
+5. по желанию (`args.llm_report=True`) сильная модель читает файлы вывода и пишет
+   `report__<tool>.{json,md}` уже в нашем формате (уровень серьёзности и классификация OWASP).
 
-Подкласс реализует только `build_invocation(cfg, tool_dir, args) -> (argv, env, cwd)` и, при нужде,
-`target_env()`/`available()`. Регистрация — декоратором `@register` (ноль ручных списков).
+Подкласс реализует только `build_invocation(cfg, tool_dir, args) -> (argv, env, cwd)` и, если
+нужно, `target_env()` и `available()`. Регистрируется декоратором `@register` — вручной список
+вести не нужно.
 
-Оркестратор: `runner.run_tools(cfg, out_dir, tools=None|[...], args, per_tool_args)` — прогоняет
-выбранные/все обёртки, пишет сводный `tools_index.json`.
+Оркестратор: `runner.run_tools(cfg, out_dir, tools=None|[...], args, per_tool_args)` прогоняет
+выбранные обёртки (или все) и пишет сводный `tools_index.json`.
 
 ## Наведение на цель
 
-Все тулы бьют по нашему OpenAI-совместимому агенту (`cfg.agent("chat")`, Bearer `sk-genai` из
-`provisioning.ensure_key`, поле `auth_mode=vulnerable`). Пути к venv тул и параметры — в
-`config/models.yaml` (`generators.<tool>`), ноль литералов в коде.
+Все инструменты работают через наш OpenAI-совместимый агент (`cfg.agent("chat")`, Bearer
+`sk-genai` из `provisioning.ensure_key`, поле `auth_mode=vulnerable`). Пути к их venv и параметры
+лежат в `config/models.yaml` (`generators.<tool>`), в коде литералов нет.
 
-## Статус тул
+## Статус инструментов
 
 | tool | как запускается | наведение | статус |
 |---|---|---|---|
-| **garak** | `python -m garak --model_type rest -G <cfg> --probes … --report_prefix <dir>` | rest-генератор → `:9600` | **работает на цели** (latent-injection пробил цель, 2 critical/confirmed) |
-| **deepteam** | `deepteam run cfg.yaml -o <dir>` | async callback-файл → `:9600`; simulator/eval → OpenRouter | **работает на цели** (ExcessiveAgency, 2 high/confirmed) |
-| **llamator** | раннер-скрипт (нет CLI) в `.venv-llamator` | кастомный `ClientBase` → `:9600` (наши `auth_mode`/`session_id` + серверная память) | **работает на цели** (chat-surface: system_prompt_leakage/sycophancy/logic) |
-| **promptfoo** | `promptfoo redteam run` (node) | provider-конфиг | план: кастомный email; memory-плагины облачные |
-| **pyrit** | — | — | **SKIP** (по решению) |
+| **garak** | `python -m garak --model_type rest -G <cfg> --probes … --report_prefix <dir>` | rest-генератор на `:9600` | **работает на цели** (latent-injection пробил цель, 2 critical/confirmed) |
+| **deepteam** | `deepteam run cfg.yaml -o <dir>` | async-файл обратного вызова на `:9600`; симулятор и оценка через OpenRouter | **работает на цели** (ExcessiveAgency, 2 high/confirmed) |
+| **llamator** | скрипт-запуск (своего CLI нет) в `.venv-llamator` | свой `ClientBase` на `:9600` (наши `auth_mode` и `session_id` плюс серверная память) | **работает на цели** (по чату: system_prompt_leakage / sycophancy / logic) |
+| **promptfoo** | `promptfoo redteam run` (node) | конфиг провайдера | в планах — свой email-провайдер; плагины памяти облачные |
+| **pyrit** | — | — | **пропущен** (по решению) |
 
-> Столбец «статус» — **эмпирика прошлых прогонов** (пример, не факт кода и не гарантия): конкретные числа (напр. «2 critical/confirmed») получены в отдельных прогонах и зависят от цели, моделей и версий тул.
+> Столбец «статус» — это наблюдения из прошлых прогонов (пример, а не факт кода и не гарантия):
+> конкретные числа (например, «2 critical/confirmed») получены в отдельных прогонах и зависят от
+> цели, моделей и версий инструментов.
 
-## Отчётная модель (llm_report) — это QC-слой, не транскрайбер
+## Отчётная модель (`llm_report`) — это перепроверка сильной моделью, а не пересказ
 
-Судьи самих тул ШУМЯТ и дают ложноположительные (факт: llamator засчитал `broken` на явном ОТКАЗЕ
-цели). Поэтому `llm_report` — не «перепиши вердикт тулы», а **скептический QC**: читает фактические
-транскрипты, ставит `independent_assessment` = `confirmed|false_positive|uncertain`, снижает severity
-на ложных, показывает вердикт тулы отдельно (`tool_verdict`).
+Судьи внутри самих инструментов шумят и дают ложные срабатывания (был случай: llamator засчитал
+`broken` на явном отказе цели). Поэтому `llm_report` — не «перепиши вердикт инструмента», а
+скептическая перепроверка: она читает фактические логи диалогов, ставит
+`independent_assessment` = `confirmed | false_positive | uncertain`, снижает уровень серьёзности на
+ложных и отдельно показывает вердикт самого инструмента (`tool_verdict`).
 
-**Важно:** вердикт обёртки (даже `confirmed`) — это **предположение вспомогательной QC-модели, НЕ детерминированный оракул**; находки внешних тул НЕ входят в список подтверждённых детерминированных уязвимостей стенда (там — только оракульные векторы: bac/docinject/directinject/chain/a05).
+**Важно:** вердикт обёртки (даже `confirmed`) — это предположение вспомогательной модели на
+перепроверке, а не проверка по фактам. Находки внешних инструментов не входят в список
+подтверждённых детерминированных уязвимостей стенда — там только векторы с проверкой по состоянию
+(bac, docinject, directinject, chain, a05).
 
-Это требует СИЛЬНОЙ модели. Слот `report` (`models.yaml`): деф. `openai/gpt-4o` (надёжный, ловит
-false_positive). `gpt-4o-mini` — слаб (якорится на ярлыке тулы), только аварийный фолбэк.
-`claude-sonnet-5` сильнее, но на OpenRouter упирается в `finish_reason=length` — кандидат, не дефолт.
-Проверено: garak/deepteam находки → `confirmed`, llamator-отказ → `false_positive` (low).
+Для этого нужна сильная модель. Слот `report` (`models.yaml`): по умолчанию `openai/gpt-4o`
+(надёжный, ловит ложные срабатывания). `gpt-4o-mini` слабоват (цепляется за ярлык, который
+выставил сам инструмент) — только запасной вариант на крайний случай. `claude-sonnet-5` сильнее,
+но на OpenRouter упирается в `finish_reason=length` — это кандидат, а не значение по умолчанию.
+Проверено: находки garak и deepteam признаны подтверждёнными, отказ у llamator помечен как ложное
+срабатывание (low).
 
 ## Запуск (пример)
 

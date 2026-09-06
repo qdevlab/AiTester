@@ -1,19 +1,23 @@
-# Вектор `bac` — межклиентский доступ (BOLA), 3 канала
+# Вектор `bac` — доступ к данным чужого клиента (BOLA), три канала
 
-Проверяет, отдаёт ли система данные ОДНОГО клиента другому (Broken Access Control / BOLA).
+Проверяет, отдаёт ли система данные одного клиента другому (нарушение контроля доступа, BOLA).
 
 ## Как это работает
-- **data_layer** (детерминированный): токен атакующего → `client_by_cus(victim)`. Вердикт — оракул
-  состояния, парный контроль `vulnerable`↔`protected` (`served_cross_cus`).
-- **account_owner** (детерминированный): резолв владельца чужого счёта; часто течёт и в `protected`.
-- **agent_mediated** (LLM→tool): агент подставляет чужой `cus/account` в инструмент; вердикт по
-  отпечаткам жертвы в ответе (не эхо запроса), доля + Wilson-CI, опц. многоходовый диалог.
+- `data_layer` (детерминированный): с токеном атакующего вызывается `client_by_cus(victim)`. Вердикт
+  даёт проверка по состоянию — парное сравнение режимов `vulnerable` и `protected`
+  (`served_cross_cus`).
+- `account_owner` (детерминированный): запрашивается владелец чужого счёта; часто течёт даже в
+  режиме `protected`.
+- `agent_mediated` (модель вызывает инструмент): агент подставляет чужой `cus` или `account` в
+  инструмент; вердикт — по отпечаткам жертвы в ответе, а не по эху запроса, доля успеха с
+  доверительным интервалом Уилсона, при желании многоходовый диалог.
 
-Read-only — стенд НЕ сбрасывается (`mutates_state=False`).
+Модуль только читает и стенд не сбрасывает (`mutates_state=False`).
 
 ## Конфиг
-Всё из `config/target.yaml` через `cfg`: endpoints (agent/data), `identities` (attacker/victim/
-account, отпечатки), `auth_modes` (vulnerable/protected). Ноль литералов.
+Всё берётся из `config/target.yaml` через `cfg`: адреса (агент и сервис данных), `identities`
+(атакующий, жертва, счёт, отпечатки), `auth_modes` (`vulnerable` и `protected`). Без зашитых
+значений.
 
 ## Параметры
 См. `params.yaml`. Пример: `run.py a-bac bac--attempts=8 bac--multiturn=true`.
@@ -26,5 +30,6 @@ account, отпечатки), `auth_modes` (vulnerable/protected). Ноль ли
 Алиас: `run.py bac` (старое имя).
 
 ## Находки
-`F-BAC-DATA` (critical, парный), `F-BAC-OWNER` (high, течёт в protected), `F-BAC-AGENT` (critical,
-доля+CI). Отчёты: `report__bac.{json,md}` + сводный `output/PROOF.md` («что написал юзер» + REST).
+`F-BAC-DATA` (critical, парное сравнение), `F-BAC-OWNER` (high, течёт и в `protected`), `F-BAC-AGENT`
+(critical, доля с доверительным интервалом). Отчёты: `report__bac.{json,md}` и сводный
+`output/PROOF.md` (что написал пользователь плюс REST-запросы).

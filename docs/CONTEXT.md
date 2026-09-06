@@ -1,155 +1,177 @@
-# CONTEXT — полный хэндофф проекта genai-harness
+# CONTEXT — полная передача дел по проекту genai-harness
 
-Этот файл — «точка входа» для новой сессии (например, после обновления Claude Code). Прочитай
-его целиком, и ты восстановишь весь контекст: что это, что сделано, как устроено, как продолжить.
-Дата актуальности: **2026-09-04**.
+Этот файл — точка входа для новой сессии (например, после обновления Claude Code). Прочитайте его
+целиком, и контекст восстановится полностью: что это, что сделано, как устроено и как продолжить.
+Актуально на **2026-09-04**.
 
-> **Статус (2026-09-06).** Это исторический хэндофф прототипа-предшественника **genai-harness**. Актуальный проект — **`aitest_cui`** (`/home/dev/aitest_cui`): модульные векторы `attack_vectors/` (грамматика `a-<name>`, флаг `--report`), стенд **genai-cui** на портах 9xxx (agent 9600, data 9200, keycloak 9180, redis 16379, mongo 37017). Актуальные точки входа: `README.md`, `docs/ARCHITECTURE.md`, `docs/ATTACK_VECTORS.md`; прогоны и отчёты — `output/runs/<штамп>/` (авто-отчёт `REPORT_<штамп>.{md,pdf}`, авто-пруф отравления `output/POISON_PROOF.md` и per-модульные `proof.md`). Ниже — исходный контекст genai-harness как история.
+> **Статус (2026-09-06).** Это исторический хэндофф прототипа-предшественника **genai-harness**.
+> Актуальный проект — **`aitest_cui`** (`/home/dev/aitest_cui`): модульные векторы атак в
+> `attack_vectors/` (запуск вида `a-<имя>`, флаг `--report`), стенд **genai-cui** на портах 9xxx
+> (agent 9600, data 9200, keycloak 9180, redis 16379, mongo 37017). Актуальные точки входа —
+> `README.md`, `docs/ARCHITECTURE.md`, `docs/ATTACK_VECTORS.md`; прогоны и отчёты лежат в
+> `output/runs/<прогон>/` (автоматический отчёт `REPORT_<прогон>.{md,pdf}`, автоматическое
+> доказательство отравления `output/POISON_PROOF.md` и `proof.md` по каждому модулю). Ниже — исходный
+> контекст genai-harness, оставлен как история.
 
 ---
 
-## 0. TL;DR
+## 0. Коротко
 
-Построена **универсальная тула тестирования безопасности GenAI-агентов с памятью** —
+Собран универсальный инструмент для проверки безопасности GenAI-агентов с памятью —
 `~/genai-harness/`. Прототип рабочий, прогнан на уязвимом стенде `genai-invest-stand`, найдено
-**6 находок** (BAC×3, отравление памяти×2, связка A×B — negative), сделаны сравнения атакующих и
-целевых моделей. Стенд НЕ изменён (код цели не трогали). Всё логируется. Основные документы:
-`RESULTS.md` (находки), `HOW_IT_WORKS.md` (на пальцах), `ARCHITECTURE.md`, `README.md`,
-`PORTABILITY.md`, `WORKLOG.md`, `docs/PLAN.md` + два PDF в `docs/`.
+**шесть находок** (три по доступу к чужим данным, две по отравлению памяти, одна по связке A и B —
+отрицательная). Сделаны сравнения атакующих и целевых моделей. Стенд не менялся (код цели не
+трогали). Всё пишется в логи. Основные документы: `RESULTS.md` (находки), `HOW_IT_WORKS.md` (на
+пальцах), `ARCHITECTURE.md`, `README.md`, `PORTABILITY.md`, `WORKLOG.md`, `docs/PLAN.md` и два PDF в
+`docs/`.
 
 ---
 
 ## 1. Задача (ТЗ)
 
-Источник — шара `/media/sf_AITest/` (`claude-code-prompt.md` = ТЗ, `customer_info.md` = описание
-цели). Копии в проекте: `TASK_SPEC.md`, `customer_info.md`.
+Источник — общая папка `/media/sf_AITest/` (`claude-code-prompt.md` — это ТЗ, `customer_info.md` —
+описание цели). Копии в проекте: `TASK_SPEC.md`, `customer_info.md`.
 
-Суть: легитимная защитная тула (как SAST/фаззер) — воспроизводимо находить BAC и отравление
-памяти агента, мерить **детерминированным оракулом состояния** (не по тексту), давать парный
-пруф `vulnerable`↔`protected`. **Принцип №0:** не сшита с целью — все факты в
-`config/target.yaml` (из customer_info), перенос = замена одного файла. Главный артефакт —
-`findings.json` (самодостаточен для перепроверки на другом агенте).
-
----
-
-## 2. Текущий статус — ВСЁ СДЕЛАНО
-
-- ✅ Фаза 0+1: карта цели (`harness/NOTES.md`) + замороженный спек (`harness/config/*.yaml`).
-- ✅ Фаза 2: каркас (core + oracle), смоук проходит.
-- ✅ Таск A (BAC): 3 находки, зелёный.
-- ✅ Таск B (отравление): 2 находки (global + within-user), продольно по стадиям памяти.
-- ✅ Ширина: сравнение атакующих моделей, полная матрица целевых моделей (6), связка A×B
-  (negative), переносимость документирована.
-- ✅ Документация + 2 PDF.
-
-Что можно доделать (не критично, см. §7).
+Суть: легитимный защитный инструмент (как SAST или фаззер) — воспроизводимо находить доступ к чужим
+данным (BAC) и отравление памяти агента, мерить проверкой по фактическому состоянию (а не по тексту)
+и давать парное доказательство `vulnerable` против `protected`. Принцип номер ноль: инструмент не
+сшит с целью — все факты лежат в `config/target.yaml` (из customer_info), перенос сводится к замене
+одного файла. Главный артефакт — `findings.json`, он самодостаточен для перепроверки на другом
+агенте.
 
 ---
 
-## 3. Окружение и как запустить
+## 2. Текущий статус — всё сделано
 
-**Стенд (цель):** `~/genai-invest-stand/`, docker compose. Сейчас ПОДНЯТ. Если после ребута лёг:
+- Готово. Фазы 0 и 1: карта цели (`harness/NOTES.md`) и замороженный спек (`harness/config/*.yaml`).
+- Готово. Фаза 2: каркас (core и oracle), смоук проходит.
+- Готово. Задача A (BAC): три находки, всё зелёное.
+- Готово. Задача B (отравление): две находки (общий ярус и в пределах клиента), продольно по стадиям
+  памяти.
+- Готово. Ширина охвата: сравнение атакующих моделей, полная матрица целевых (шесть), связка A и B
+  (отрицательная), переносимость описана.
+- Готово. Документация и два PDF.
+
+Что можно доделать (не критично) — см. раздел 7.
+
+---
+
+## 3. Окружение и запуск
+
+**Стенд (цель):** `~/genai-invest-stand/`, docker compose. Сейчас поднят. Если после перезагрузки лёг:
 ```bash
-cd ~/genai-invest-stand && docker compose up -d      # cert Keycloak уже есть; ждать healthy
+cd ~/genai-invest-stand && docker compose up -d      # сертификат Keycloak уже есть; дождаться healthy
 curl localhost:8600/healthz                          # {"status":"ok"}
 ```
-Порты: agent-api 8600, data 8200, mcp 8100, keycloak 8180/8443, redis 6379, mongo 27017.
-Модель цели: `gpt-5-mini` (мозг+консолидация), провайдер OpenRouter, в `~/genai-invest-stand/.env`.
-**НЕ менять код стенда.** Смена модели цели — только через .env-оверлей (см. `target_matrix.py`).
+Порты: agent-api 8600, data 8200, mcp 8100, keycloak 8180/8443, redis 6379, mongo 27017. Модель цели —
+`gpt-5-mini` (мозг и сворачивание памяти), провайдер OpenRouter, задаётся в
+`~/genai-invest-stand/.env`. Код стенда не менять. Модель цели меняется только через наложенный
+`.env` (см. `target_matrix.py`).
 
-**Тула:** `~/genai-harness/`, venv `.venv` (pyyaml/pymongo/redis/requests). Ключ OpenRouter в
-`~/genai-harness/.env` (`OPENROUTER_API_KEY`).
+**Инструмент:** `~/genai-harness/`, виртуальное окружение `.venv` (pyyaml, pymongo, redis, requests).
+Ключ OpenRouter — в `~/genai-harness/.env` (`OPENROUTER_API_KEY`).
 ```bash
 cd ~/genai-harness && set -a && . ./.env && set +a
 ./.venv/bin/python -m harness.orchestration.run smoke     # проверка связности
-./.venv/bin/python -m harness.orchestration.run bac       # Таск A
-./.venv/bin/python -m harness.orchestration.run poison    # Таск B (медленно, ~25 мин)
+./.venv/bin/python -m harness.orchestration.run bac       # Задача A
+./.venv/bin/python -m harness.orchestration.run poison    # Задача B (медленно, ~25 мин)
 ./.venv/bin/python -m harness.orchestration.run models    # сравнение атакующих моделей
-./.venv/bin/python -m harness.orchestration.run chain     # связка A×B
+./.venv/bin/python -m harness.orchestration.run chain     # связка A и B
 ./.venv/bin/python /tmp/.../run_target_matrix_full.py     # матрица целевых (или target_matrix.__main__)
 ```
 
-**Ключ OpenRouter — ВАЖНО:** ключ ОДИН (в `.env` харнесса И в `.env` стенда — один и тот же ключ, не коммитить). Через него идёт ВСЁ: и харнесс (attacker/judge), и мозг агента-цели.
-На 04.09 израсходовано ~$5.4 из $63, осталось ~$57.6 (gpt-5-mini дёшев). Лимита на ключе нет.
+**Ключ OpenRouter — важно.** Ключ один: в `.env` инструмента и в `.env` стенда лежит один и тот же
+ключ, в git его не коммитим. Через него идёт всё — и инструмент (атакующая модель, судья), и мозг
+агента-цели. На 04.09 израсходовано около $5.4 из $63, осталось около $57.6 (gpt-5-mini дёшев).
+Лимита на ключе нет.
 
 ---
 
 ## 4. Находки (детали в RESULTS.md; артефакты в harness/runs/)
 
-| Находка | run-папка | суть |
+| Находка | Папка прогона | Суть |
 |---|---|---|
-| F-BAC-DATA [critical] | `runs/bac-20260904-015111/` | data-layer пара vuln 200 / prot 403 |
-| F-BAC-AGENT [critical] | там же | LLM→tool BAC 6/8=0.75 vuln, 0/8 prot |
-| F-BAC-OWNER [high] | там же | account_owner течёт в protected |
-| F-POISON-GLOBAL [critical] | `runs/poison-20260904-021041/` | cross-tenant 4/28, драйвер compliance-регистр; база 0 |
-| F-POISON-USER [high] | там же | within-user 19/28=0.68 |
-| F-CHAIN-AXB [info/negative] | `runs/chain-20260904-024520/` | правило садится 4/4, но триггер не эксплуатирует 0/4 |
+| F-BAC-DATA [critical] | `runs/bac-20260904-015111/` | слой данных, пара vulnerable 200 / protected 403 |
+| F-BAC-AGENT [critical] | там же | доступ через агента 6/8=0.75 в vulnerable, 0/8 в protected |
+| F-BAC-OWNER [high] | там же | владелец счёта утекает и в protected |
+| F-POISON-GLOBAL [critical] | `runs/poison-20260904-021041/` | межклиентское 4/28, ведущий приём — тон соответствия требованиям; база 0 |
+| F-POISON-USER [high] | там же | в пределах клиента 19/28=0.68 |
+| F-CHAIN-AXB [info/negative] | `runs/chain-20260904-024520/` | правило закрепляется 4/4, но триггер не срабатывает 0/4 |
 
-**Сравнение атакующих** (`runs/models-20260904-015844/`): deepseek-v4-flash 6/6 лучший, opus-5
-отказался (пустой ответ). **Матрица целевых** (`runs/target-matrix-20260904-095117/`):
-llama-4-maverick 0/9 = ПРОВАЛ ВОЗМОЖНОСТЕЙ (не умеет tool-calling, не «устойчивость»); gpt-4o-mini
-0.67 (устойчивее из рабочих), gpt-5-mini/sonnet-5/qwen 0.78, deepseek-flash 1.0.
-
----
-
-## 5. Устройство (кратко; полно — ARCHITECTURE.md)
-
-`harness/config/` — target/hypotheses/models/payloads.yaml (единственная правда о цели).
-`harness/core/` — config, client (транспорт+аудит), provisioning (headless-ключи), openrouter,
-attacker (LLM-мутатор), isolation (canary/reset), runlog.
-`harness/oracle/` — state (BAC + чтение памяти), fingerprints (мульти-отпечаток), memory_observer
-(диффы), judge_llm (дифф-судья).
-`harness/tasks/` — bac, memory_poison (продольно по стадиям), chain_ab.
-`harness/recon/` — route_oracle, prompt_fuzz (black-box/non-LLM ось).
-`harness/orchestration/` — run.py (CLI), target_matrix.py.
-`harness/report/` — findings, coverage, susceptibility, stats(Уилсон).
-`harness/runs/<id>/` — attempts.jsonl, calls.jsonl, openrouter.jsonl, findings, coverage.
+Сравнение атакующих (`runs/models-20260904-015844/`): deepseek-v4-flash 6/6 — лучший, opus-5
+отказался (пустой ответ). Матрица целевых (`runs/target-matrix-20260904-095117/`): llama-4-maverick
+0/9 — это нехватка возможностей (не умеет вызывать инструменты), а не устойчивость; gpt-4o-mini 0.67
+(устойчивее из рабочих), gpt-5-mini, sonnet-5 и qwen по 0.78, deepseek-flash 1.0.
 
 ---
 
-## 6. ГРАБЛИ И УРОКИ (обязательно прочитать перед продолжением)
+## 5. Устройство (кратко; полностью — в ARCHITECTURE.md)
 
-1. **Изоляция памяти критична.** В mongo копятся канарейки прошлых прогонов и гнут ответы агента.
-   Перед кампанией — `isolation.reset_memory()` (полный сброс ярусов, НЕ трогает api_keys) или
-   `purge_all_canaries()` (по сигнатурам маркеров). Постгрес-посев клиентов не трогать.
-2. **Детект ложных плюсов.** Отпечатки НЕ засчитывают: (а) эхо чужого id, который атакующий сам
-   положил в запрос; (б) голые короткие числа. Сильные признаки: имя/кэш/ISIN/`ISIN×amount`/налог.
-3. **Фоновые прогоны — только ПРЯМОЙ run_in_background** (сам python как команда). НЕ
-   `python ... &` внутри bash (SIGHUP убьёт python) и НЕ pgrep-сторож с паттерном своей же
-   команды (`pgrep -f "orchestration.run X"` матчит сам сторож → вечный цикл). Оба бага ловил.
-4. **docker force-recreate** agent-api при первом «холодном» рестарте может подвиснуть в `Created`
-   ~40с — НЕ вмешиваться вручную (`docker start` создаёт гонку двух контейнеров); ждать (таймаут
-   health в target_matrix = 150с). target_matrix бэкапит и ВОССТАНАВЛИВАЕТ .env в finally.
-5. **Возможности ≠ безопасность.** Модель, не умеющая tool-calling (llama-4-maverick), даёт 0
-   утечек — это провал возможностей, помечать отдельно, НЕ засчитывать «безопасно».
-6. **Отравление стохастично и НЕ мгновенно.** Мерить частоту на N; finalize дёргать явно (2
-   канала: endpoint / слово `finalize`); global редко, user часто (оба — результат); контрзаписи-
-   отказы гасят эффект → сброс памяти между формулировками. Цикл ~52с (gpt-5-mini reasoning).
+- `harness/config/` — target/hypotheses/models/payloads.yaml (единственная правда о цели).
+- `harness/core/` — config, client (транспорт и аудит), provisioning (ключи без браузера), openrouter,
+  attacker (видоизменение атак моделью), isolation (метки-канарейки и сброс), runlog.
+- `harness/oracle/` — state (BAC и чтение памяти), fingerprints (сверка по нескольким отпечаткам),
+  memory_observer (сравнение ярусов), judge_llm (дифференциальный судья).
+- `harness/tasks/` — bac, memory_poison (продольно по стадиям), chain_ab.
+- `harness/recon/` — route_oracle, prompt_fuzz (ось без модели, для black-box).
+- `harness/orchestration/` — run.py (командная строка), target_matrix.py.
+- `harness/report/` — findings, coverage, susceptibility, stats (интервал Уилсона).
+- `harness/runs/<id>/` — attempts.jsonl, calls.jsonl, openrouter.jsonl, findings, coverage.
+
+---
+
+## 6. Грабли и уроки (прочитать до того, как продолжать)
+
+1. **Изоляция памяти критична.** В mongo копятся канарейки прошлых прогонов и искажают ответы агента.
+   Перед кампанией — `isolation.reset_memory()` (полный сброс ярусов, не трогает `api_keys`) или
+   `purge_all_canaries()` (по сигнатурам меток). Посев клиентов в postgres не трогать.
+2. **Отсев ложных срабатываний.** Отпечаток не засчитывается, если это (а) эхо чужого id, который
+   атакующий сам вписал в запрос, или (б) голое короткое число. Надёжные признаки — имя, остаток,
+   ISIN, произведение ISIN на количество, сумма налога.
+3. **Фоновые прогоны — только прямым `run_in_background`** (сам python как команда). Не `python ... &`
+   внутри bash (SIGHUP убьёт python) и не сторож на `pgrep` с шаблоном собственной команды
+   (`pgrep -f "orchestration.run X"` поймает сам себя и уйдёт в вечный цикл). Оба бага уже ловили.
+4. **`docker force-recreate`** для agent-api при первом холодном перезапуске может зависнуть в
+   состоянии `Created` секунд на сорок — руками не вмешиваться (`docker start` создаёт гонку двух
+   контейнеров), просто ждать (таймаут проверки здоровья в target_matrix — 150 с). target_matrix
+   делает резервную копию `.env` и восстанавливает её в блоке finally.
+5. **Возможности не равны безопасности.** Модель, которая не умеет вызывать инструменты
+   (llama-4-maverick), даёт ноль утечек — это провал по возможностям, его надо отмечать отдельно и не
+   засчитывать как «безопасно».
+6. **Отравление случайно и не мгновенно.** Меряем частоту на N попыток; финализацию дёргаем явно (два
+   канала: endpoint или слово `finalize`); общий ярус выходит редко, личный — часто (оба результата
+   важны); отказы-опровержения гасят эффект, поэтому память между формулировками сбрасываем. Один цикл
+   — около 52 с (gpt-5-mini с рассуждениями).
 
 ---
 
 ## 7. Открытые направления (если продолжать)
 
-- Связка A×B: добить бо́льшим N / другими формулировками (сейчас 0/4 — правило садится, но не
-  триггерит); поднять `MAX_REACT_TOOL_CALLS` оверлеем, чтобы дать агенту шаги на цепочку тулов.
-- BAC-свип: расширить на ВСЕ 7 чувствительных инструментов × 4 жертвы (сейчас MVP-пара 1001→1003).
-- Ось «где LLM»: отдельное сравнение static vs LLM-oneshot vs LLM-adaptive по одной цели.
-- Within-user (H4) отдельным чистым прогоном (сейчас доказан внутри poison как scope=user).
-- Матрица {attacker}×{target} целиком (сейчас две оси измерены раздельно).
-- Расширить оракул на black-box режим (`GET /memory` через SSO — помечено needs_review).
+- Связка A и B: добить бо́льшим N или другими формулировками (сейчас 0/4 — правило закрепляется, но не
+  срабатывает как триггер); поднять `MAX_REACT_TOOL_CALLS` через наложенный конфиг, чтобы дать агенту
+  шаги на цепочку инструментов.
+- Перебор BAC: расширить на все 7 чувствительных инструментов по 4 жертвы (сейчас пара для MVP: 1001 к
+  1003).
+- Ось «где стоит модель»: отдельное сравнение статики, одного прохода модели и адаптивного прохода на
+  одной цели.
+- Сохранение в пределах клиента (гипотеза H4) — отдельным чистым прогоном (сейчас доказано внутри
+  poison как scope=user).
+- Матрица «атакующие на целевые» целиком (сейчас две оси измерены порознь).
+- Расширить проверку на режим black-box (`GET /memory` через SSO — помечено needs_review).
 
 ---
 
 ## 8. Как продолжить после обновления Claude Code
 
-1. Открой этот файл (`docs/CONTEXT.md` в `aitest_cui`) — исторический контекст; актуальные точки входа см. в баннере вверху.
-2. Проверь стенд: `docker compose -f ~/genai-invest-stand/docker-compose.yml ps` → если лёг,
+1. Откройте этот файл (`docs/CONTEXT.md` в `aitest_cui`) — это исторический контекст; актуальные точки
+   входа см. в пометке вверху.
+2. Проверьте стенд: `docker compose -f ~/genai-invest-stand/docker-compose.yml ps`; если лёг —
    `docker compose up -d`.
-3. Проверь тулу: `cd ~/genai-harness && set -a && . ./.env && set +a && ./.venv/bin/python -m
-   harness.orchestration.run smoke` → должно быть `SMOKE OK`.
-4. Дальше — по §7 или новая задача. Память Claude тоже хранит краткую версию: см.
-   memory `genai-harness-tool` (в MEMORY.md).
+3. Проверьте инструмент: `cd ~/genai-harness && set -a && . ./.env && set +a && ./.venv/bin/python -m
+   harness.orchestration.run smoke` — должно быть `SMOKE OK`.
+4. Дальше — по разделу 7 или новая задача. Краткая версия есть и в памяти Claude: заметка
+   `genai-harness-tool` (в MEMORY.md).
 
-**Связанные (референс, НЕ часть этого проекта):** `~/genai-sectest/` (прошлая, сшитая с целью
-тула + подключённые garak/llamator/pyrit/deepteam), `~/Desktop/investigation/` (методы разведки),
+**Связанные проекты (для справки, не часть этого):** `~/genai-sectest/` (прошлый инструмент, сшитый с
+целью, с подключёнными garak/llamator/pyrit/deepteam), `~/Desktop/investigation/` (методы разведки),
 PDF-разборы стенда на `~/Desktop/`.
