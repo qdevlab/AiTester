@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sys
+import time
 import traceback
 
 from ..core.config import load, PROJECT_ROOT, OUTPUT_DIR
@@ -406,12 +407,26 @@ def cmd_mem(cfg, marker=None):
     return 0
 
 
-def cmd_report(cfg, model=None, run_sel=None):
+def cmd_report(cfg, model=None, run_sel=None, dir_path=None):
     """Ядро-отчёт по уязвимостям: свод report__*.json ОДНОГО прогона сильной LLM (fallback — детерм.).
     Читает ту же общую папку, куда писали модули (CURRENT/--run), поэтому НЕ разъезжается по датам
     и видит модули от всех (в т.ч. параллельных) агентов. Пишет в саму папку прогона + общий output/.
     Атрибуция по модулям + дедуп; форвард-совместим с модулями-прокладками (narrative)."""
     from ..report import synthesize
+    if dir_path:                                    # папка АРГУМЕНТОМ -> независимый отчётник (отладка)
+        try:
+            res = synthesize.build_for_dir(dir_path, cfg, model=model, copy_to_output=True)
+        except NotADirectoryError:
+            print(f"report --dir: не папка: {dir_path}")
+            return 1
+        print(f"Отчёт по уязвимостям ({'LLM' if res['used_llm'] else 'fallback'}) из папки {dir_path}:")
+        print(f"  в папке -> {res['md']}")
+        if res.get("pdf"):
+            print(f"  PDF -> {res['pdf']}")
+        print(f"  общий -> {os.path.join(OUTPUT_DIR, 'VULN_REPORT.md')}")
+        print(f"  источники ({len(res['sources'])}): "
+              f"{', '.join(os.path.basename(s) for s in res['sources']) or '—'}")
+        return 0
     rid = runlog.resolve_read_run_id(run_sel)
     if rid is None:
         print("report: не найдено ни одного прогона (runs/ пуст). Запустите a-<vector>/a-all.")
@@ -702,13 +717,35 @@ def cmd_vectors(cfg, selected, overrides, run_sel=None, new=False):
                 return 1
     stamp = runlog.resolve_run_id(new=new, name=run_sel)   # одна папка: CURRENT/--run/--new
     parent = Run(stamp, cfg)                                # runs/<stamp>/ — общий прогон (переиспользуется)
+    # тех-манифест: метка «папка рабочая» + запуск/начало (обновим конец в финале). Merge -> при
+    # дозапуске модулей в ту же папку command/started накапливаются, finished двигается.
+    try:
+        runlog.write_manifest(parent.dir, run_id=parent.run_id, status="running",
+                              command=_manifest_cmd(selected, overrides),
+                              started=time.strftime("%Y-%m-%d %H:%M:%S"),
+                              target=cfg.target["target"]["name"])
+    except Exception as e:
+        print(f"манифест (старт) не записан: {type(e).__name__}: {e}")
     print("== VECTORS ==", "прогон:", parent.run_id, "|", ", ".join(names),
           "(общая папка — переиспользуется, в т.ч. параллельными агентами)")
     for name in names:
         _run_one_vector(cfg, stamp, name, reg[name], overrides)   # -> runs/<stamp>/<name>/
     _aggregate_run(parent, cfg)                            # кумулятивный свод по ВСЕЙ папке
+    try:
+        runlog.write_manifest(parent.dir, status="done", modules=names,
+                              finished=time.strftime("%Y-%m-%d %H:%M:%S"))
+    except Exception as e:
+        print(f"манифест (финиш) не записан: {type(e).__name__}: {e}")
     print(f"прогон: {parent.dir}/ (модули в подпапках)  ·  отчёт: run.py report")
     return 0
+
+
+def _manifest_cmd(selected, overrides):
+    """Реконструировать команду запуска для манифеста: 'a-all garak--prompt_cap=3' и т.п."""
+    sel = " ".join("a-all" if s == "*" else "a-all-nowrapper" if s == "*-nowrapper" else f"a-{s}"
+                   for s in (selected or []))
+    ovr = " ".join(f"{v}--{k}={val}" for v, kv in (overrides or {}).items() for k, val in kv.items())
+    return ("run.py " + (sel + " " + ovr).strip()).strip()
 
 
 def main(argv=None):
@@ -734,6 +771,8 @@ def main(argv=None):
                     help="имя/id папки прогона: report/new/poison-proof (по умолчанию — CURRENT/последний)")
     ap.add_argument("--model", default=None,
                     help="report: модель-сборщик (оверрайд слота reporter), напр. anthropic/claude-opus-4.6")
+    ap.add_argument("--dir", default=None,
+                    help="report: собрать из ЛЮБОЙ папки (аргумент) с report__*.json — независимо от output/runs/")
     args = ap.parse_args(argv)
 
     if args.cmd == "smoke":
@@ -763,7 +802,7 @@ def main(argv=None):
         cmd_mem(cfg, marker=args.marker)
         return 0
     if args.cmd == "report":
-        return cmd_report(cfg, model=args.model, run_sel=args.run)
+        return cmd_report(cfg, model=args.model, run_sel=args.run, dir_path=args.dir)
     if args.cmd == "new":
         return cmd_new(cfg, name=args.run)
     if args.cmd == "where":

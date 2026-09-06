@@ -16,6 +16,27 @@ from .config import OUTPUT_DIR
 # Ротация — явная: `run.py new` (свежий штамп) или `--run <имя>` (именованная кампания).
 _RUNS_DIR = os.path.join(OUTPUT_DIR, "runs")
 _CURRENT = os.path.join(_RUNS_DIR, "CURRENT")
+_MANIFEST = "test_info.json"                       # краткий тех-манифест прогона в папке (метка + метаданные)
+
+
+def write_manifest(run_dir, **fields):
+    """Создать/обновить test_info.json в папке прогона (merge полей). Служит и МЕТКОЙ «папка рабочая»
+    для отчётника, и носит: command (как запускали), started/finished, selected/overrides, target."""
+    data = read_manifest(run_dir) or {"schema": "run_manifest/1"}
+    data.update({k: v for k, v in fields.items() if v is not None})
+    os.makedirs(run_dir, exist_ok=True)
+    _atomic_write(os.path.join(run_dir, _MANIFEST),
+                  json.dumps(data, ensure_ascii=False, indent=2))
+    return data
+
+
+def read_manifest(run_dir):
+    """test_info.json прогона -> dict | None (None = папка без манифеста, т.е. «не рабочий прогон»)."""
+    try:
+        with open(os.path.join(run_dir, _MANIFEST), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 def _stamp():
@@ -83,11 +104,12 @@ def resolve_read_run_id(run_sel=None):
 
 
 class Run:
-    def __init__(self, name=None, cfg=None):
+    def __init__(self, name=None, cfg=None, dir=None):
         self.cfg = cfg
         rid = name or time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4]
-        self.run_id = rid
-        self.dir = os.path.join(OUTPUT_DIR, "runs", rid)
+        self.run_id = os.path.basename(dir.rstrip("/")) if dir else rid
+        # dir задан -> пишем в ЛЮБУЮ переданную папку (независимый отчётник); иначе — output/runs/<rid>
+        self.dir = os.path.abspath(dir) if dir else os.path.join(OUTPUT_DIR, "runs", rid)
         os.makedirs(self.dir, exist_ok=True)
         self._attempts = os.path.join(self.dir, "attempts.jsonl")
         self.t0 = time.time()
