@@ -34,10 +34,12 @@ _PROMPT = """Составь технический отчёт по резуль�
     - Суть и последствие — 1-2 предложения, конкретно.
     - Подтверждение — чем (оракул/дифф) + доля успеха и 95% ДИ, если есть.
     - Модули — какие подтвердили.
-    - Воспроизведение — 1 строка.
+    - Воспроизведение — 1 строка (канал + триггер). Подробный пошаговый транскрипт реальной атаки
+      добавит КОД отдельным разделом «Как проводилась атака» — здесь его НЕ дублируй.
     - OWASP — ASI/LLM.
 Если у модуля есть поле `narrative` (внешний атакующий модуль) — кратко включи его факты, без
-переписывания. Разделы «Внешние атакующие модули» и «Список модулей / тайминг» добавит КОД — не пиши их.
+переписывания. Разделы «Как проводилась атака», «Внешние атакующие модули», «Список модулей / тайминг»
+добавит КОД — не пиши их.
 Не выдумывай сверх данных. Терминология: «атакующий модуль» (не «тула»/«инструмент атаки»).
 
 ДАННЫЕ (JSON находок по модулям):
@@ -138,7 +140,7 @@ def build(run, cfg, model=None, scope_dir=None):
               f"Модулей: {len(reports)}. Источники: {src_names}. "
               f"Вердикт — детерминированный state-оракул (дифф БД/сервиса), не текст-судья._\n\n")
     # Разделы строятся КОДОМ (не на откуп LLM): тулы + запуск/тайминг модулей + пер-модульная сводка.
-    sections = [header + body, _tools_section(reports),
+    sections = [header + body, _repro_section(reports), _tools_section(reports),
                 _modules_meta_section(reports, scope_dir), _module_table(reports)]
     return "\n\n".join(s for s in sections if s and s.strip()), src, used_llm
 
@@ -178,13 +180,144 @@ def _modules_meta_section(reports, scope_dir=None):
              "| Модуль | Аргументы запуска | Начало | Конец | Длит. | Статус |",
              "|---|---|---|---|---|---|"]
     for v, m in rows:
-        args = m.get("args")
-        args_s = (", ".join(f"{k}={vv}" for k, vv in args.items()) if isinstance(args, dict) and args
-                  else (str(args) if args else "—")) or "—"
-        if len(args_s) > 90:
-            args_s = args_s[:87] + "…"
-        lines.append(f"| `{v}` | {args_s} | {m.get('started', '?')} | {m.get('finished', '—')} | "
-                     f"{_dur(m.get('started'), m.get('finished'))} | {m.get('status', '?')} |")
+        lines.append(f"| `{v}` | {_compact_args(m.get('args'))} | {m.get('started', '?')} | "
+                     f"{m.get('finished', '—')} | {_dur(m.get('started'), m.get('finished'))} | "
+                     f"{m.get('status', '?')} |")
+    return "\n".join(lines)
+
+
+def _compact_args(args):
+    """Короткое представление аргументов для таблицы: списки -> счётчик, длинные строки -> обрезка."""
+    if not isinstance(args, dict) or not args:
+        return "—"
+    def _v(x):
+        if isinstance(x, (list, tuple, dict)):
+            return f"[{len(x)}]"
+        s = str(x)
+        return (s[:22] + "…") if len(s) > 22 else s
+    s = ", ".join(f"{k}={_v(x)}" for k, x in args.items())
+    return (s[:80] + "…") if len(s) > 80 else s
+
+
+def _demonstrated_attempt(module_dir):
+    """Из attempts.jsonl модуля выбрать ПОКАЗАТЕЛЬНУЮ успешную попытку (для транскрипта атаки).
+    Приоритет: cross-tenant/global > всплытие у жертвы > прочий успех."""
+    best = None
+    try:
+        for line in open(os.path.join(module_dir, "attempts.jsonl"), encoding="utf-8"):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            hit = (d.get("leak") or d.get("served") or d.get("confirmed")
+                   or d.get("E2_global") or d.get("E2_user") or d.get("E2_landed_user")
+                   or d.get("E3_in_victim_context") or d.get("E3_victim_ctx") or d.get("E3_in_context")
+                   or d.get("resurf_victim") or d.get("resurf_author")
+                   or (d.get("ok") and d.get("user_text")))
+            if not hit:
+                continue
+            score = (3 if (d.get("E2_global") or d.get("scope") == "global") else
+                     2 if (d.get("resurf_victim") or d.get("E3_in_victim_context")
+                           or d.get("E3_victim_ctx") or d.get("leak") or d.get("served")) else 1)
+            if d.get("user_text") or d.get("prompt") or d.get("doc_excerpt"):
+                score += 2                      # предпочитаем попытки с РЕАЛЬНЫМ вводом в LLM (не чистый REST)
+            if best is None or score > best[0]:
+                best = (score, d)
+    except OSError:
+        return None
+    return best[1] if best else None
+
+
+def _attack_story(rec):
+    """Структурировать записанную попытку в транскрипт: что подавалось на вход + ответы + эффект."""
+    if not rec:
+        return None
+    sent = []
+    ut = rec.get("user_text")
+    if isinstance(ut, list):
+        sent += [str(x) for x in ut if x]
+    elif ut:
+        sent.append(str(ut))
+    if rec.get("prompt"):
+        sent.append(str(rec["prompt"]))
+    if rec.get("doc_excerpt"):
+        sent.append("«Прими, пожалуйста, документ на анализ» + документ:\n" + str(rec["doc_excerpt"]))
+    replies = [(k, str(rec[k])) for k in ("reply_excerpt", "resurf_victim_reply", "resurf_author_reply")
+               if rec.get(k)]
+    obs = []
+    if rec.get("served") or rec.get("leak"):
+        obs.append("агент выдал данные ДРУГОГО клиента")
+    if rec.get("E2_global") or rec.get("scope") == "global":
+        obs.append("запись села на ОБЩИЙ ярус памяти (policy) → видна всем клиентам (cross-tenant)")
+    if rec.get("E2_user") or rec.get("E2_landed_user"):
+        obs.append("запись села в личную память клиента (semantic), переживает сессии")
+    if rec.get("E3_in_victim_context") or rec.get("E3_victim_ctx") or rec.get("resurf_victim"):
+        obs.append("маркер всплыл в НОВОМ чате другого клиента (жертвы)")
+    if rec.get("E4_marker_in_victim_reply"):
+        obs.append("маркер воспроизведён в ответе жертве")
+    return {"attacker": rec.get("attacker"), "victim": rec.get("victim"), "marker": rec.get("marker"),
+            "channel": rec.get("channel") or rec.get("framing"), "scope": rec.get("scope"),
+            "sent": sent, "replies": replies, "observed": obs}
+
+
+_FIX_BY_CLASS = {
+    "bac": "проверять принадлежность запрошенного cus/счёта текущему клиенту (авторизация на уровне объекта, BOLA) — и в сервисе данных, и в инструментах агента.",
+    "poison-global": "не записывать пользовательский ввод в ОБЩИЙ (cross-tenant) ярус; валидация источника и scope при консолидации.",
+    "within-user": "валидировать/подтверждать перед записью произвольных «правил/фактов» в долговременную память; не доверять формулировкам вида «запомни/это факт».",
+}
+
+
+def _repro_section(reports):
+    """ДЕТЕРМИНИРОВАННО: как РЕАЛЬНО атаковали — пошаговый транскрипт из записанных модулем данных
+    (что подавалось на вход агенту, ответы агента, наблюдаемый эффект, что чинить)."""
+    rows = []
+    for v, (p, d) in sorted(reports.items()):
+        if not _confirmed(d):
+            continue
+        story = _attack_story(_demonstrated_attempt(os.path.dirname(p)))
+        if story and (story["sent"] or story["observed"]):
+            rows.append((v, d, story))
+    if not rows:
+        return ""
+    lines = ["## Как проводилась атака (реальные вводы в модель)", "",
+             "_Пошагово из логов прогона: что подавалось агенту на вход, как он ответил, что "
+             "изменилось в памяти. По этому разделу видно, что чинить._", ""]
+    for v, d, s in rows:
+        lines.append(f"### `{v}` — {d.get('title', '')}")
+        meta = [x for x in (f"атакующий: клиент {s['attacker']}" if s["attacker"] else "",
+                            f"жертва: клиент {s['victim']}" if s["victim"] else "",
+                            f"маркер: **{s['marker']}**" if s["marker"] else "",
+                            f"канал: {s['channel']}" if s["channel"] else "") if x]
+        if meta:
+            lines.append("- " + " · ".join(meta))
+        lines.append("")
+        if s["sent"]:
+            lines.append("**Ввод атакующего агенту (дословно):**")
+            for t in s["sent"]:
+                lines.append("")
+                lines.append("```")
+                lines.append(t[:1200])
+                lines.append("```")
+            lines.append("→ затем **finalize** (консолидация памяти).")
+        else:
+            lines.append("**Ввод:** прямой вызов сервиса данных токеном атакующего (без сообщения в чат).")
+        if s["replies"]:
+            lines.append("")
+            lines.append("**Ответ агента (факт из лога):**")
+            tag = {"reply_excerpt": "на запрос атакующего", "resurf_victim_reply": "в НОВОМ чате ЖЕРТВЫ",
+                   "resurf_author_reply": "в новом чате автора"}
+            for k, txt in s["replies"]:
+                lines.append(f"- _{tag.get(k, k)}:_ {txt[:500].strip()}")
+        if s["observed"]:
+            lines.append("")
+            lines.append("**Наблюдаемый эффект:** " + "; ".join(s["observed"]) + ".")
+        fix = _FIX_BY_CLASS.get((d.get("findings", [{}])[0] or {}).get("type"))
+        if fix:
+            lines.append(f"**Что чинить:** {fix}")
+        lines.append("")
     return "\n".join(lines)
 
 
