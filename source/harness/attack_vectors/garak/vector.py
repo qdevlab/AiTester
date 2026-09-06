@@ -10,7 +10,7 @@ from ...tool_wrappers.garak import GarakWrapper
 
 class GarakVector(ToolVector):
     name = "garak"
-    title = "garak — latent/prompt injection (внешняя тула)"
+    title = "garak — latent/prompt injection (внешний атакующий модуль)"
     taxonomy = {"owasp_asi": "Prompt/Payload Injection", "owasp_llm": "LLM01 Prompt Injection"}
     hypotheses = ("H-garak-injection",)
     WRAPPER = GarakWrapper

@@ -43,20 +43,17 @@ class ToolVector(AttackVector):
         unc = sum(1 for f in fs if f.get("independent_assessment") == "uncertain")
         tv = rep.get("tool_verdict")
         tv = tv if isinstance(tv, str) else (json.dumps(tv, ensure_ascii=False) if tv else "")
-        p = [f"Внешняя тула **{self.name}**: status={summary.get('status')}, "
-             f"{summary.get('duration_s')}s, rc={summary.get('returncode')}"
-             + (", TIMEOUT" if summary.get("timed_out") else "") + "."]
-        p.append("ВАЖНО: по обёрткам нет детерминированного оракула (это текст-атаки) — вердикт ниже "
-                 "это ПРЕДПОЛОЖЕНИЕ второй LLM (QC перечитывает транскрипты), НЕ истина и не 'сильнее' "
-                 "судьи тулы; проверяемый факт — реальные ответы цели в пер-тульном отчёте report__"
-                 f"{self.name}.md.")
+        p = [f"Внешний атакующий модуль **{self.name}**: выполнен за {summary.get('duration_s')} с "
+             f"(status={summary.get('status')}" + (", TIMEOUT" if summary.get("timed_out") else "") + ")."]
+        p.append(f"Заявлено находок: {len(fs)}; независимая проверка (вспомогательная модель — "
+                 f"предположение, не детерминированный оракул): подтверждено {conf}, "
+                 f"отклонено как ложноположительные {fp}"
+                 + (f", неопределённо {unc}" if unc else "") + ".")
         if rep.get("summary"):
-            p.append(f"Итог QC (предположение): {rep['summary']}")
+            p.append(f"Итог: {rep['summary']}")
         if tv:
-            p.append(f"Вердикт самой тулы: {tv[:300]}")
-        p.append(f"Заявлено тулой находок: {len(fs)}; QC-предположительно подтверждено: {conf}; "
-                 f"QC считает ложноположительными (тула засчитала пробитие, но в транскрипте цель "
-                 f"отказала/уклонилась): {fp}" + (f"; неопределённо: {unc}" if unc else "") + ".")
+            p.append(f"Собственный вердикт инструмента: {tv[:200]}")
+        p.append(f"Фактические ответы цели — в report__{self.name}.md.")
         return " ".join(p)
 
     def run(self, ctx):
@@ -88,7 +85,7 @@ class ToolVector(AttackVector):
         if st in ("unavailable", "build_error") or summary.get("timed_out") or summary.get("error"):
             return [F.finding(
                 f"F-{self.name.upper()}-RUN", self.name,
-                f"Обёртка {self.name}: тула не отработала",
+                f"Внешний атакующий модуль {self.name}: не выполнился",
                 {"channel": f"внешняя тула ({self.name})", "status": st,
                  "call": f"{self.name} (venv) -> цель"},
                 f"status={st}; timed_out={summary.get('timed_out')}; error={summary.get('error')}",
@@ -117,7 +114,7 @@ class ToolVector(AttackVector):
         if not out:                                          # отработала, находок нет -> цель устояла
             out = [F.finding(
                 f"F-{self.name.upper()}-CLEAN", self.name,
-                f"Обёртка {self.name}: пробитий по фактам не выявлено",
+                f"Внешний атакующий модуль {self.name}: пробитий по фактам не выявлено",
                 {"channel": f"внешняя тула ({self.name})", "tool_verdict": rep.get("tool_verdict", "")},
                 rep.get("summary", "тула отработала, находок не выявлено"),
                 None, "info", status="not-demonstrated",

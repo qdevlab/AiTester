@@ -11,7 +11,7 @@ from ...tool_wrappers.llamator import LlamatorWrapper
 
 class LlamatorVector(ToolVector):
     name = "llamator"
-    title = "llamator — red-team чата: leak/sycophancy/logic (внешняя тула)"
+    title = "llamator — red-team чата: leak/sycophancy/logic (внешний атакующий модуль)"
     taxonomy = {"owasp_asi": "System Prompt Leakage / Manipulation",
                 "owasp_llm": "LLM07 System Prompt Leakage"}
     hypotheses = ("H-llamator-chat",)

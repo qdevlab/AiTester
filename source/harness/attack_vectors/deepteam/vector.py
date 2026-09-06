@@ -10,7 +10,7 @@ from ...tool_wrappers.deepteam import DeepteamWrapper
 
 class DeepteamVector(ToolVector):
     name = "deepteam"
-    title = "deepteam — red-team агентских уязвимостей (внешняя тула)"
+    title = "deepteam — red-team агентских уязвимостей (внешний атакующий модуль)"
     taxonomy = {"owasp_asi": "Excessive Agency / Tool Misuse", "owasp_llm": "LLM06 Excessive Agency"}
     hypotheses = ("H-deepteam-agentic",)
     WRAPPER = DeepteamWrapper
