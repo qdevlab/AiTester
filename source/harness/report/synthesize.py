@@ -136,9 +136,55 @@ def build(run, cfg, model=None, scope_dir=None):
               f"_Синтез: {'модель ' + (model or slot['default']) if used_llm else 'детерминированный fallback'}. "
               f"Модулей: {len(reports)}. Источники: {src_names}. "
               f"Вердикт — детерминированный state-оракул (дифф БД/сервиса), не текст-судья._\n\n")
-    # Разделы строятся КОДОМ (не на откуп LLM): раздел про внешние тулы + пер-модульная сводка.
-    sections = [header + body, _tools_section(reports), _module_table(reports)]
+    # Разделы строятся КОДОМ (не на откуп LLM): тулы + запуск/тайминг модулей + пер-модульная сводка.
+    sections = [header + body, _tools_section(reports),
+                _modules_meta_section(reports, scope_dir), _module_table(reports)]
     return "\n\n".join(s for s in sections if s and s.strip()), src, used_llm
+
+
+def _dur(started, finished):
+    """Длительность 'М:СС' / 'Ч:ММ:СС' из двух меток '%Y-%m-%d %H:%M:%S' (или '—')."""
+    import datetime as _dt
+    try:
+        a = _dt.datetime.strptime(started, "%Y-%m-%d %H:%M:%S")
+        b = _dt.datetime.strptime(finished, "%Y-%m-%d %H:%M:%S")
+        s = int((b - a).total_seconds())
+        return f"{s // 3600}:{(s % 3600) // 60:02d}:{s % 60:02d}" if s >= 3600 else f"{s // 60}:{s % 60:02d}"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _modules_meta_section(reports, scope_dir=None):
+    """ДЕТЕРМИНИРОВАННО: запуск/аргументы/тайминг КАЖДОГО модуля из его test_info.json (мини-файла).
+    Большой отчётник собирает мини-файлы ВСЕХ модулей папки (в т.ч. исключённых из свода, напр. stub)
+    и рассказывает о них. scope_dir -> сканим все <module>/test_info.json; иначе — по reports."""
+    from ..core.runlog import read_manifest
+    manifests = {}
+    if scope_dir:
+        for tp in sorted(glob.glob(os.path.join(scope_dir, "*", "test_info.json"))):
+            m = read_manifest(os.path.dirname(tp))
+            if m:
+                manifests[m.get("vector") or os.path.basename(os.path.dirname(tp))] = m
+    else:
+        for v, (p, _d) in reports.items():
+            m = read_manifest(os.path.dirname(p))
+            if m:
+                manifests[v] = m
+    rows = sorted(manifests.items())
+    if not rows:
+        return ""
+    lines = ["## Модули: запуск, аргументы и тайминг (из test_info.json)", "",
+             "| Модуль | Аргументы запуска | Начало | Конец | Длит. | Статус |",
+             "|---|---|---|---|---|---|"]
+    for v, m in rows:
+        args = m.get("args")
+        args_s = (", ".join(f"{k}={vv}" for k, vv in args.items()) if isinstance(args, dict) and args
+                  else (str(args) if args else "—")) or "—"
+        if len(args_s) > 90:
+            args_s = args_s[:87] + "…"
+        lines.append(f"| `{v}` | {args_s} | {m.get('started', '?')} | {m.get('finished', '—')} | "
+                     f"{_dur(m.get('started'), m.get('finished'))} | {m.get('status', '?')} |")
+    return "\n".join(lines)
 
 
 def _tools_section(reports):
@@ -207,14 +253,27 @@ def _fallback_md(payload):
     return "\n".join(lines)
 
 
+def _load_env_file(path):
+    """Подтянуть KEY=VALUE из .env в окружение (setdefault) — для standalone-запуска отчётника."""
+    try:
+        for line in open(path, encoding="utf-8"):
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+    except OSError:
+        pass
+
+
 def build_for_dir(folder, cfg=None, model=None, write_pdf=True, copy_to_output=False):
     """НЕЗАВИСИМАЯ сборка отчёта из ПАПКИ, переданной АРГУМЕНТОМ (любой путь, не только output/runs/).
     Берёт report__*.json из folder (в подпапках модулей и/или плоско), строит VULN_REPORT.{md,pdf}
     ПРЯМО в folder. Для отладки отчётника отдельно от прогона:
         python -m harness.report.synthesize <папка> [--model ...] [--no-pdf] [--to-output]
     -> dict(md, pdf, sources, used_llm)."""
-    from ..core.config import load
+    from ..core.config import load, PROJECT_ROOT
     from ..core.runlog import Run, read_manifest, _atomic_write
+    _load_env_file(os.path.join(PROJECT_ROOT, ".env"))    # чтобы standalone (-m) видел OPENROUTER_API_KEY
     cfg = cfg or load()
     folder = os.path.abspath(folder)
     if not os.path.isdir(folder):

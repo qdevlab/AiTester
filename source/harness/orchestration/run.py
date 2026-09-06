@@ -594,25 +594,44 @@ def _run_one_vector(cfg, stamp, name, cls, overrides):
     """Полный жизненный цикл ОДНОГО вектора ПОД ЗАЩИТОЙ, в СВОЕЙ подпапке runs/<stamp>/<name>/
     (свои attempts/calls/report/summary/proof). Никогда не бросает. -> (list[finding], subrun)."""
     subrun = Run(os.path.join(stamp, name), cfg)
+    ov = overrides.get(name, {})
+    started = time.strftime("%Y-%m-%d %H:%M:%S")
+
+    def _finish(status, fs):
+        """Дописать КОНЕЦ в пер-модульный test_info.json на ЛЮБОМ выходе и вернуть (fs, subrun)."""
+        try:
+            runlog.write_manifest(subrun.dir, status=status,
+                                  finished=time.strftime("%Y-%m-%d %H:%M:%S"), findings=len(fs))
+        except Exception as e:
+            print(f"  [{name}] манифест (финиш) не записан: {type(e).__name__}: {e}")
+        return fs, subrun
+
     try:
-        params = merge_params(cls, overrides.get(name, {}))
+        params = merge_params(cls, ov)
     except Exception as e:
         print(f"  [{name}] параметры не собрались ({type(e).__name__}: {e}) — беру дефолты")
         params = dict(getattr(cls, "_param_defaults", {}) or {})
+    # пер-модульный манифест: метка + АРГУМЕНТЫ запуска + НАЧАЛО (конец допишет _finish)
+    try:
+        runlog.write_manifest(subrun.dir, vector=name, run_id=name, status="running",
+                              command=_manifest_cmd([name], {name: ov} if ov else {}),
+                              args=params, started=started)
+    except Exception as e:
+        print(f"  [{name}] манифест (старт) не записан: {type(e).__name__}: {e}")
     try:
         vec = cls(params=params)
     except Exception as e:
         print(f"  [{name}] init упал: {type(e).__name__}: {e}")
-        return [_error_finding(name, "init", e, traceback.format_exc())], subrun
+        return _finish("error", [_error_finding(name, "init", e, traceback.format_exc())])
 
     ctx = VectorContext(run=subrun, cfg=cfg, params=params)
     try:
         if not vec.applicable(ctx):
             print(f"  [{name}] неприменим к цели (applicable=False) — пропуск")
-            return [], subrun
+            return _finish("skipped", [])
     except Exception as e:
         print(f"  [{name}] applicable упал: {type(e).__name__}: {e}")
-        return [_error_finding(name, "applicable", e, traceback.format_exc())], subrun
+        return _finish("error", [_error_finding(name, "applicable", e, traceback.format_exc())])
 
     print(f"  [{name}] запуск (mutates_state={getattr(vec, 'mutates_state', False)}) params={params}")
     summary, fs = None, []
@@ -657,7 +676,7 @@ def _run_one_vector(cfg, stamp, name, cls, overrides):
         _publish_top(name, subrun)
     except Exception as e:
         print(f"  [{name}] публикация PoC не удалась: {type(e).__name__}: {e}")
-    return fs, subrun
+    return _finish("error" if any(f.get("status") == "error" for f in fs) else "done", fs)
 
 
 def _aggregate_run(parent, cfg):
