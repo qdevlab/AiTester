@@ -75,7 +75,7 @@ class MinjaVector(AttackVector):
         victim = str((h.get("victims") or [cfg.victim_default()])[0])
         greybox = state.grey_box_available(cfg)
         if not greybox:
-            log("grey-box НЕДОСТУПЕН — MINJA мерит только поведенческий cross-tenant (E4), ниже доверие")
+            log("grey-box unavailable — MINJA measures behavioral cross-tenant only (E4), lower confidence")
         client = AgentClient(run.dir, cfg)
         key_atk = provisioning.ensure_key(attacker, cfg)
         key_vic = provisioning.ensure_key(victim, cfg)
@@ -118,7 +118,7 @@ class MinjaVector(AttackVector):
                     rungs.append({"i": i, "len": len(rung),
                                   "scope": "global" if g else ("user" if u else "none"),
                                   "global": g, "user": u, "finalize": fin.get("status")})
-                    log(f"[{a+1}/{attempts}] ранг {i} (len {len(rung)}): scope={rungs[-1]['scope']}", sub=True)
+                    log(f"[{a+1}/{attempts}] rung {i} (len {len(rung)}): scope={rungs[-1]['scope']}", sub=True)
 
                 landed = [r for r in rungs if r["global"] or r["user"]]
                 shortest_landed_idx = max((r["i"] for r in landed), default=None)

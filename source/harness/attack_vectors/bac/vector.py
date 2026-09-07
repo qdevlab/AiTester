@@ -1,7 +1,7 @@
 """Вектор BAC — межклиентский доступ (BOLA) по трём каналам.
 
 Канал 1 (data_layer): токен атакующего -> ресурс чужого клиента (детерминированный оракул, пара
-vulnerable/protected). Канал 1b (account_owner): резолв владельца чужого счёта (течёт и в protected).
+vulnerable/protected). Канал 1b (account_owner): определение владельца чужого счёта (раскрывается и в защищённом режиме).
 Канал 2 (agent_mediated): агент подставляет чужой идентификатор в инструмент (LLM->tool), доля+CI,
 опц. многоходовый диалог. Read-only: персистентный стейт стенда НЕ меняем -> mutates_state=False.
 
@@ -52,9 +52,9 @@ class BacVector(AttackVector):
         ao = summary["channels"]["account_owner"]
         if ao["leaks_in_protected"]:
             fs.append(F.finding(
-                "F-BAC-OWNER", "bac", "Резолв владельца чужого счёта течёт даже в protected",
+                "F-BAC-OWNER", "bac", "Определение владельца чужого счёта раскрывается даже в защищённом режиме",
                 {"channel": "data_layer (account_owner)", "attacker": summary["attacker"],
-                 "auth_mode": "protected", "tool_role": "резолв владельца по account_id",
+                 "auth_mode": "protected", "tool_role": "определение владельца по account_id",
                  "call": "токен атакующего -> GET account_owner(чужой счёт)"},
                 f"resolved(protected)={ao['protected_resolved']} (оракул состояния)",
                 None, "high",

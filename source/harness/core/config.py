@@ -21,7 +21,7 @@ def _load(name):
 
 
 class Config:
-    """Обёртка над target/hypotheses/models/payloads с удобными резолверами."""
+    """Обёртка над target/hypotheses/models/payloads с удобными распознавателями."""
 
     def __init__(self):
         self.target = _load("target.yaml")   # весь словарь: target/endpoints/auth_modes/...

@@ -23,7 +23,7 @@ endpoints:
   data_service:                            # invest-server (REST-бэкенд, слой BAC-2)
     base_url: http://localhost:9200
     client_by_cus: /clients/{cus}          # прямое чтение данных клиента (оракул BAC)
-    account_owner: /accounts/{account_id}/owner  # резолв владельца счёта (течёт даже в protected)
+    account_owner: /accounts/{account_id}/owner  # определение владельца счёта (раскрывается даже в защищённом режиме)
   keycloak:
     base_url: http://localhost:9180        # http
     issuer_url: https://localhost:8443     # https, iss в токенах (self-signed)
@@ -117,7 +117,7 @@ tools:
         extra: [year]
       - name: client_operation_history_list
         extra: []
-    by_account:                           # cus резолвится из счёта
+    by_account:                           # cus определяется из счёта
       - name: margin_instruments_list
         extra: []
       - name: margin_instrument_get_info

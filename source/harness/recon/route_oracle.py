@@ -49,7 +49,7 @@ def classify(url, key, probe_schema=False):
     code, hdrs = _probe(url, "GET")
     steps["GET(no-key)"] = code
     if code == 404:
-        return {"verdict": "нет", "steps": steps}
+        return {"verdict": "no", "steps": steps}
     allow = hdrs.get("Allow") or hdrs.get("allow")
     if allow:
         steps["Allow"] = allow
@@ -57,7 +57,7 @@ def classify(url, key, probe_schema=False):
     if probe_schema:
         code, _ = _probe(url, "POST", key=key, body={})
         steps["POST(key,{})"] = code
-    return {"verdict": "ЕСТЬ", "steps": steps}
+    return {"verdict": "yes", "steps": steps}
 
 
 def discover(cfg=None, template="/v1/sessions/{{sid}}/{word}", sid="probe", probe_schema=False):
@@ -69,7 +69,7 @@ def discover(cfg=None, template="/v1/sessions/{{sid}}/{word}", sid="probe", prob
     for w in WORDS:
         path = template.replace("{{sid}}", sid).format(word=w)
         r = classify(base + path, key, probe_schema)
-        if r["verdict"] == "ЕСТЬ":
+        if r["verdict"] == "yes":
             found.append({"word": w, "path": path, **r})
     return found
 

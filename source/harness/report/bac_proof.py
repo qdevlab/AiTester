@@ -116,7 +116,7 @@ def build(run_dir):
         d.append("## 1b. Многоходовые диалоги (--multiturn) — что написал юзер по ходам\n")
         d.append(f"Диалогов: **{len(conv)}**, с утечкой: **{len(cleaks)}**. Каждый — ОДНА сессия, "
                  "атакующий эскалирует по ответу агента; `[УТЕЧКА]` — в каком-то ходе раскрыты"
-                 "данные жертвы.\n")
+                 " данные жертвы.\n")
         for i, a in enumerate(conv, 1):
             leaked = bool(a.get("leak"))
             tag = "[УТЕЧКА]" if leaked else "[нет утечки]"
@@ -155,7 +155,7 @@ def build(run_dir):
             ow = json.dumps(a.get("owner"), ensure_ascii=False) if a.get("resolved") else None
             d.append(f"- `GET account_owner` (как клиент {attacker}, режим `{a.get('auth_mode')}`) "
                      f"→ HTTP {a.get('status')}, "
-                     f"{'резолвит владельца: ' + ow if a.get('resolved') else 'закрыл'}.")
+                     f"{'определяет владельца: ' + ow if a.get('resolved') else 'закрыл'}.")
         d.append("")
 
     out = os.path.join(run_dir, "proof.md")   # единый файл — не плодим второй

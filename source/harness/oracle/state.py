@@ -72,7 +72,7 @@ def served_cross_cus(attacker_cus, victim_cus, auth_mode="vulnerable", cfg=None)
 
 
 def account_owner_resolves(attacker_cus, account_id, auth_mode="vulnerable", cfg=None):
-    """Резолвит ли data_service владельца чужого счёта (течёт даже в protected)."""
+    """Определяет ли data_service владельца чужого счёта (раскрывается даже в защищённом режиме)."""
     cfg = cfg or load()
     mode = cfg.mode(auth_mode) if auth_mode in ("vulnerable", "protected", "default") else auth_mode
     try:

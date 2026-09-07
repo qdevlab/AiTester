@@ -24,7 +24,7 @@ _DIR = os.path.dirname(os.path.abspath(__file__))
 
 def _import_vector_module(pkg, entry, folder):
     """Импортировать <folder>/vector.py как pkg.<entry>.vector БЕЗ __init__.py в папке атаки.
-    Синтетический подпакет pkg.<entry> с __path__ даёт резолв относительных импортов
+    Синтетический подпакет pkg.<entry> с __path__ даёт разрешение относительных импортов
     (from ..base import AttackVector) — автор просто кладёт папку, ничего не регистрируя."""
     modname = f"{pkg}.{entry}.vector"
     if modname in sys.modules:

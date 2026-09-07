@@ -44,7 +44,7 @@ def _mint_key(cus, cfg=None):
         resp = r.read().decode()
     m = re.search(p["key_regex"], resp)
     if not m:
-        raise RuntimeError(f"ключ не найден в ответе выдачи для cus={cus}")
+        raise RuntimeError(f"key not found in issuance response for cus={cus}")
     return m.group(0)
 
 

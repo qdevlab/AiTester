@@ -32,6 +32,7 @@ from ..report import report_std
 from ..report.stats import summarize_rate
 from ..attack_vectors import discover, merge_params
 from ..attack_vectors.base import VectorContext
+from ..core.log import section, tee_streams
 
 
 def _load_env():
@@ -105,9 +106,9 @@ def cmd_bac(cfg, attempts, multiturn=False, max_turns=5):
     ao = summary["channels"]["account_owner"]
     if ao["leaks_in_protected"]:
         fs.append(F.finding(
-            "F-BAC-OWNER", "bac", "Резолв владельца чужого счёта течёт даже в protected",
+            "F-BAC-OWNER", "bac", "Определение владельца чужого счёта раскрывается даже в защищённом режиме",
             {"channel": "data_layer (account_owner)", "attacker": summary["attacker"],
-             "auth_mode": "protected", "tool_role": "резолв владельца по account_id",
+             "auth_mode": "protected", "tool_role": "определение владельца по account_id",
              "call": "токен атакующего -> GET account_owner(чужой счёт)"},
             f"resolved(protected)={ao['protected_resolved']} (оракул состояния)",
             None, "high",
@@ -135,8 +136,8 @@ def cmd_bac(cfg, attempts, multiturn=False, max_turns=5):
         top = os.path.join(OUTPUT_DIR, "PROOF.md")
         with open(bp, encoding="utf-8") as s, open(top, "w", encoding="utf-8") as t:
             t.write(s.read())
-        print(f"PoC BAC (что написал юзер + REST) -> {bp}\n"
-              f"  сводный (тот же файл) -> {top}")
+        print(f"PoC BAC (what the user wrote + REST) -> {bp}\n"
+              f"  consolidated (same file) -> {top}")
     print(f"findings: {doc['count']} -> {run.path('findings.json')}")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return run
@@ -151,7 +152,7 @@ def cmd_bac_proof(cfg, run_id=None):
         cands = [os.path.join(runs_dir, d) for d in os.listdir(runs_dir)
                  if d.startswith("bac-") and os.path.exists(os.path.join(runs_dir, d, "attempts.jsonl"))]
         if not cands:
-            print("bac-proof: не найдено ни одного bac-прогона с логами.")
+            print("bac-proof: no bac run with logs found.")
             return 1
         run_dir = max(cands, key=lambda d: os.path.getmtime(os.path.join(d, "attempts.jsonl")))
     bp = bac_proof.build(run_dir)
@@ -159,10 +160,10 @@ def cmd_bac_proof(cfg, run_id=None):
         top = os.path.join(OUTPUT_DIR, "PROOF.md")
         with open(bp, encoding="utf-8") as s, open(top, "w", encoding="utf-8") as t:
             t.write(s.read())
-        print(f"PoC BAC (что написал юзер + REST) -> {bp}")
-        print(f"Сводный (тот же файл) -> {top}")
+        print(f"PoC BAC (what the user wrote + REST) -> {bp}")
+        print(f"Consolidated (same file) -> {top}")
         return 0
-    print(f"bac-proof: в {os.path.basename(run_dir)} нет BAC-попыток.")
+    print(f"bac-proof: no BAC attempts in {os.path.basename(run_dir)}.")
     return 1
 
 
@@ -244,7 +245,7 @@ def cmd_poison(cfg, attempts, use_llm):
     pp = poison_proof.build(run.dir)         # ЕДИНЫЙ отчёт отравления: run.dir/proof.md
     if pp:
         top = _publish_poison_proof(pp)      # -> output/POISON_PROOF.md
-        print(f"PoC отравление (что написал юзер) -> {pp}\n  сводный (тот же файл) -> {top}")
+        print(f"PoC poisoning (what the user wrote) -> {pp}\n  consolidated (same file) -> {top}")
     print(f"findings: {doc['count']} -> {run.path('findings.json')}")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return run
@@ -260,20 +261,20 @@ def cmd_poison_proof(cfg, run_id=None):
                  if d.startswith("poison-") and
                  os.path.exists(os.path.join(runs_dir, d, "attempts.jsonl"))]
         if not cands:
-            print("poison-proof: не найдено ни одного poison-прогона с логами.")
+            print("poison-proof: no poison run with logs found.")
             return 1
         # по времени прогона = mtime attempts.jsonl (не папки: её сдвигает запись отчёта)
         run_dir = max(cands, key=lambda d: os.path.getmtime(os.path.join(d, "attempts.jsonl")))
     if not os.path.exists(os.path.join(run_dir, "attempts.jsonl")):
-        print(f"poison-proof: нет attempts.jsonl в {run_dir}")
+        print(f"poison-proof: no attempts.jsonl in {run_dir}")
         return 1
     pp = poison_proof.build(run_dir)
     if pp:
         top = _publish_poison_proof(pp)
-        print(f"Пруф воздействия (отравление памяти) -> {pp}")
-        print(f"Верхнеуровневая копия (последняя) -> {top}")
+        print(f"Impact proof (memory poisoning) -> {pp}")
+        print(f"Top-level copy (latest) -> {top}")
         return 0
-    print(f"poison-proof: в {os.path.basename(run_dir)} нет попыток отравления.")
+    print(f"poison-proof: no poison attempts in {os.path.basename(run_dir)}.")
     return 1
 
 
@@ -283,7 +284,7 @@ def cmd_llm_repro(cfg):
     out = os.path.join(OUTPUT_DIR, "LLM_FINDINGS_REPRO.md")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     path = llm_repro.build(cfg, out)
-    print(f"Ручное воспроизведение LLM-находок (адрес из конфига) -> {path}")
+    print(f"Manual reproduction of LLM findings (address from config) -> {path}")
     return 0
 
 
@@ -348,7 +349,7 @@ def cmd_models(cfg, models=None, n_gen=6):
         except Exception as e:
             rows.append({"model": m, "attempts": 0, "leaks": 0, "rate": 0.0,
                          "note": f"ошибка: {str(e)[:80]}"})
-            print(f"  {m}: ошибка {str(e)[:80]}")
+            print(f"  {m}: error {str(e)[:80]}")
     rows = S.attacker_table(rows)
     doc = S.write(run, "attacker_bac", rows,
                   extra={"attacker": attacker, "victim": victim, "n_gen": n_gen,
@@ -371,37 +372,37 @@ def cmd_mem(cfg, marker=None):
     Метка на policy (ОБЩИЙ ярус) = cross-tenant; на semantic = within-user.
     """
     snap = state.snapshot(cfg)
-    print("== ПАМЯТЬ: состояние ярусов ==")
+    print("== MEMORY: tier state ==")
     for t in ("policy", "semantic", "episodic", "dialog"):
-        tag = {"policy": " <- ОБЩИЙ (scope=global, в промпт ВСЕХ клиентов)",
+        tag = {"policy": " <- SHARED (scope=global, in ALL clients' prompt)",
                "semantic": " (scope=user)"}.get(t, "")
-        print(f"  {t:9} [{cfg.collection(t)}]: {snap[t]['count']} записей{tag}")
+        print(f"  {t:9} [{cfg.collection(t)}]: {snap[t]['count']} records{tag}")
     try:
         r = state._rds(cfg)
         mask = cfg.redis["working_key_tpl"].split("{")[0] + "*"
-        print(f"  working   [redis {mask}]: {len(list(r.scan_iter(mask)))} ключей сессий")
+        print(f"  working   [redis {mask}]: {len(list(r.scan_iter(mask)))} session keys")
     except Exception as e:
-        print(f"  working   [redis]: недоступно ({str(e)[:50]})")
+        print(f"  working   [redis]: unavailable ({str(e)[:50]})")
 
     if marker:
-        print(f"\n== ПОИСК МЕТКИ '{marker}' ПО ЯРУСАМ ==")
+        print(f"\n== MARKER SEARCH: '{marker}' across tiers ==")
         hit = False
         for t in ("policy", "semantic", "episodic", "dialog"):
             hits = state.find_marker(marker, t, cfg)
             if hits:
                 hit = True
                 verdict = "GLOBAL / CROSS-TENANT" if t == "policy" else ("within-user" if t == "semantic" else t)
-                print(f"  [{t}] {len(hits)} совпадений  =>  {verdict}")
+                print(f"  [{t}] {len(hits)} matches  =>  {verdict}")
                 for h in hits[:2]:
                     print(f"     {json.dumps(h, ensure_ascii=False)[:180]}")
         if not hit:
-            print("  метка не найдена ни на одном ярусе (не приземлилась)")
+            print("  marker not found in any tier (did not land)")
         return 0
 
     facts = state.policy_facts(cfg)
-    print(f"\n== ОБЩИЙ ярус policy ({cfg.collection('policy')}) — входит в контекст ВСЕХ клиентов ==")
+    print(f"\n== SHARED tier policy ({cfg.collection('policy')}) — enters ALL clients' context ==")
     if not facts:
-        print("  (пусто)")
+        print("  (empty)")
     for i, f in enumerate(facts[:20], 1):
         print(f"  [{i}] {json.dumps(f, ensure_ascii=False)[:200]}")
     return 0
@@ -417,19 +418,19 @@ def cmd_report(cfg, model=None, run_sel=None, dir_path=None):
         try:
             res = synthesize.build_for_dir(dir_path, cfg, model=model, copy_to_output=True)
         except NotADirectoryError:
-            print(f"report --dir: не папка: {dir_path}")
+            print(f"report --dir: not a directory: {dir_path}")
             return 1
-        print(f"Отчёт по уязвимостям ({'LLM' if res['used_llm'] else 'fallback'}) из папки {dir_path}:")
-        print(f"  в папке -> {res['md']}")
+        print(f"Vulnerability report ({'LLM' if res['used_llm'] else 'fallback'}) from folder {dir_path}:")
+        print(f"  in folder -> {res['md']}")
         if res.get("pdf"):
             print(f"  PDF -> {res['pdf']}")
-        print(f"  общий -> {os.path.join(OUTPUT_DIR, os.path.basename(res['md']))}")
-        print(f"  источники ({len(res['sources'])}): "
+        print(f"  shared -> {os.path.join(OUTPUT_DIR, os.path.basename(res['md']))}")
+        print(f"  sources ({len(res['sources'])}): "
               f"{', '.join(os.path.basename(s) for s in res['sources']) or '—'}")
         return 0
     rid = runlog.resolve_read_run_id(run_sel)
     if rid is None:
-        print("report: не найдено ни одного прогона (runs/ пуст). Запустите a-<vector>/a-all.")
+        print("report: no run found (runs/ is empty). Run a-<vector>/a-all.")
         return 1
     run = Run(rid, cfg)                              # пишем В папку прогона, не плодим report-<date>
     md, src, used = synthesize.build(run, cfg, model=model, scope_dir=run.dir)
@@ -438,9 +439,9 @@ def cmd_report(cfg, model=None, run_sel=None, dir_path=None):
     top = os.path.join(OUTPUT_DIR, md_name)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     runlog._atomic_write(top, md)                   # общая папка output/ — копия отчёта этого прогона
-    print(f"Отчёт по уязвимостям ({'LLM' if used else 'fallback'}), прогон '{rid}':")
-    print(f"  в папке прогона -> {run.path(md_name)}")
-    print(f"  общий -> {top}")
+    print(f"Vulnerability report ({'LLM' if used else 'fallback'}), run '{rid}':")
+    print(f"  in run folder -> {run.path(md_name)}")
+    print(f"  shared -> {top}")
     pdf_top = os.path.join(OUTPUT_DIR, pdf_name)
     try:
         from ..report import pdf as pdfmod
@@ -448,11 +449,11 @@ def cmd_report(cfg, model=None, run_sel=None, dir_path=None):
         pdfmod.render(md, pdf_top)
         print(f"  PDF -> {pdf_top}")
     except Exception as e:
-        print(f"  PDF не собран ({type(e).__name__}: {str(e)[:120]}) — MD на месте")
+        print(f"  PDF not built ({type(e).__name__}: {str(e)[:120]}) — MD in place")
     if not src:
-        print("  (в этом прогоне ещё нет report__*.json — модули не отработали?)")
+        print("  (no report__*.json in this run yet — modules did not run?)")
     else:
-        print(f"  источники ({len(src)}): {', '.join(os.path.basename(s) for s in src)}")
+        print(f"  sources ({len(src)}): {', '.join(os.path.basename(s) for s in src)}")
     return 0
 
 
@@ -461,9 +462,9 @@ def cmd_new(cfg, name=None):
     Все последующие a-<vector> — и другие агенты — будут писать в неё, отчёт соберётся по ней."""
     rid = runlog.resolve_run_id(new=True, name=name)
     Run(rid, cfg)                                   # создать папку
-    print(f"новый прогон: {rid}")
-    print(f"  папка: {os.path.join(OUTPUT_DIR, 'runs', rid)}")
-    print("  дальше: run.py a-<vector> [...]  (все агенты пишут сюда)  ->  run.py report")
+    print(f"new run: {rid}")
+    print(f"  folder: {os.path.join(OUTPUT_DIR, 'runs', rid)}")
+    print("  next: run.py a-<vector> [...]  (all agents write here)  ->  run.py report")
     return 0
 
 
@@ -472,22 +473,22 @@ def cmd_where(cfg):
     rid = runlog.current_run_id()
     if not rid:
         latest = runlog.resolve_read_run_id()
-        print("CURRENT не задан.",
-              f"Самый свежий прогон: {latest}" if latest else "Прогонов ещё нет.")
-        print("Начать: run.py new  (или a-<vector> создаст папку и запомнит её).")
+        print("CURRENT not set.",
+              f"Latest run: {latest}" if latest else "No runs yet.")
+        print("Start: run.py new  (or a-<vector> creates a folder and remembers it).")
         return 0
     d = os.path.join(OUTPUT_DIR, "runs", rid)
     mods = sorted(os.path.basename(os.path.dirname(p))
                   for p in glob.glob(os.path.join(d, "*", "report__*.json")))
-    print(f"текущий прогон: {rid}\n  папка: {d}")
-    print(f"  модули с отчётом ({len(mods)}): {', '.join(mods) if mods else '—'}")
+    print(f"current run: {rid}\n  folder: {d}")
+    print(f"  modules with a report ({len(mods)}): {', '.join(mods) if mods else '—'}")
     return 0
 
 
 def _proof_note(run):
     p = run.path("proof.md")
     if os.path.exists(p):
-        print(f"PoC успешных атак (воспроизводимо руками) -> {p}")
+        print(f"PoC of successful attacks (reproducible by hand) -> {p}")
 
 
 def _stamp():
@@ -547,24 +548,24 @@ def cmd_list(cfg):
     """Печать реестра обнаруженных векторов + схемы их параметров (ноль регистрации)."""
     reg = discover()
     if not reg:
-        print("векторы не найдены (attack_vectors/ пуст)")
+        print("no vectors found (attack_vectors/ is empty)")
         return 0
-    print(f"== Векторы атак ({len(reg)}) ==")
+    print(f"== Attack vectors ({len(reg)}) ==")
     for name in sorted(reg):
         cls = reg[name]
         st = "state-mutating" if getattr(cls, "mutates_state", False) else "read-only"
-        act = "" if getattr(cls, "active", True) else "  (не в a-all)"
+        act = "" if getattr(cls, "active", True) else "  (not in a-all)"
         wr = "  [wrapper]" if getattr(cls, "is_wrapper", False) else ""
         print(f"\n  a-{name}  — {getattr(cls, 'title', '') or name}  [{st}]{wr}{act}")
         tx = getattr(cls, "taxonomy", {}) or {}
         if tx.get("owasp_asi") or tx.get("owasp_llm"):
-            print(f"     таксономия: ASI {tx.get('owasp_asi', '-')} · LLM {tx.get('owasp_llm', '-')}")
+            print(f"     taxonomy: ASI {tx.get('owasp_asi', '-')} · LLM {tx.get('owasp_llm', '-')}")
         for k, spec in (getattr(cls, "_param_schema", {}) or {}).items():
             desc = spec.get("description", "")
             print(f"     {name}--{k}={spec.get('default')}   {('# ' + desc) if desc else ''}")
-    print("\nЗапуск: a-<name> [a-<name> ...] | a-all (все) | a-all-nowrapper (без обёрток [wrapper])")
-    print("        override: <name>--<key>=<value>   ·   папка прогона: --run <имя> / --new / new / where")
-    print("        отчёт сразу: добавь --report  ·  отдельно: run.py report")
+    print("\nRun: a-<name> [a-<name> ...] | a-all (all) | a-all-nowrapper (without [wrapper]s)")
+    print("        override: <name>--<key>=<value>   ·   run folder: --run <name> / --new / new / where")
+    print("        report now: add --report  ·  separately: run.py report")
     return 0
 
 
@@ -581,7 +582,7 @@ def _publish_top(name, run):
     dst = os.path.join(OUTPUT_DIR, top)
     with open(src, encoding="utf-8") as s, open(dst, "w", encoding="utf-8") as t:
         t.write(s.read())
-    print(f"    сводный PoC -> {dst}")
+    print(f"    consolidated PoC -> {dst}")
 
 
 def _error_finding(name, phase, exc, tb=None):
@@ -593,6 +594,23 @@ def _error_finding(name, phase, exc, tb=None):
         None, "info", status="error",
         notes=(("трейс: " + tb[-400:]) if tb else "Вектор не завершился; см. лог прогона."),
         taxonomy={"owasp_asi": "N/A (harness error)", "owasp_llm": "N/A (harness error)"})
+
+
+def _short_params(p):
+    """Compact params for the console line: keep short scalars, collapse long payloads."""
+    out = {}
+    for k, v in (p or {}).items():
+        if isinstance(v, bool) or isinstance(v, (int, float)):
+            out[k] = v
+        elif isinstance(v, str):
+            out[k] = v if len(v) <= 40 else f"<{len(v)} chars>"
+        elif isinstance(v, (list, tuple)):
+            out[k] = f"<{len(v)} items>"
+        elif isinstance(v, dict):
+            out[k] = f"<{len(v)} keys>"
+        else:
+            out[k] = v
+    return out
 
 
 def _run_one_vector(cfg, stamp, name, cls, overrides):
@@ -608,13 +626,13 @@ def _run_one_vector(cfg, stamp, name, cls, overrides):
             runlog.write_manifest(subrun.dir, status=status,
                                   finished=time.strftime("%Y-%m-%d %H:%M:%S"), findings=len(fs))
         except Exception as e:
-            print(f"  [{name}] манифест (финиш) не записан: {type(e).__name__}: {e}")
+            print(f"  [{name}] manifest (finish) not written: {type(e).__name__}: {e}")
         return fs, subrun
 
     try:
         params = merge_params(cls, ov)
     except Exception as e:
-        print(f"  [{name}] параметры не собрались ({type(e).__name__}: {e}) — беру дефолты")
+        print(f"  [{name}] params could not be assembled ({type(e).__name__}: {e}) — using defaults")
         params = dict(getattr(cls, "_param_defaults", {}) or {})
     # пер-модульный манифест: метка + АРГУМЕНТЫ запуска + НАЧАЛО (конец допишет _finish)
     try:
@@ -622,65 +640,65 @@ def _run_one_vector(cfg, stamp, name, cls, overrides):
                               command=_manifest_cmd([name], {name: ov} if ov else {}),
                               args=params, started=started)
     except Exception as e:
-        print(f"  [{name}] манифест (старт) не записан: {type(e).__name__}: {e}")
+        print(f"  [{name}] manifest (start) not written: {type(e).__name__}: {e}")
     try:
         vec = cls(params=params)
     except Exception as e:
-        print(f"  [{name}] init упал: {type(e).__name__}: {e}")
+        print(f"  [{name}] init failed: {type(e).__name__}: {e}")
         return _finish("error", [_error_finding(name, "init", e, traceback.format_exc())])
 
     ctx = VectorContext(run=subrun, cfg=cfg, params=params)
     try:
         if not vec.applicable(ctx):
-            print(f"  [{name}] неприменим к цели (applicable=False) — пропуск")
+            print(f"  [{name}] not applicable to target (applicable=False) — skip")
             return _finish("skipped", [])
     except Exception as e:
-        print(f"  [{name}] applicable упал: {type(e).__name__}: {e}")
+        print(f"  [{name}] applicable failed: {type(e).__name__}: {e}")
         return _finish("error", [_error_finding(name, "applicable", e, traceback.format_exc())])
 
-    print(f"  [{name}] запуск (mutates_state={getattr(vec, 'mutates_state', False)}) params={params}")
+    print(f"  [{name}] start (mutates_state={getattr(vec, 'mutates_state', False)}) params={_short_params(params)}")
     summary, fs = None, []
     try:
         try:
             vec.setup(ctx)
         except Exception as e:
-            print(f"  [{name}] setup упал (продолжаю): {type(e).__name__}: {e}")
+            print(f"  [{name}] setup failed (continuing): {type(e).__name__}: {e}")
         cm = isolation.stand_lease(cfg) if getattr(vec, "mutates_state", False) else contextlib.nullcontext()
         with cm:
             summary = vec.run(ctx)
     except Exception as e:
-        print(f"  [{name}] RUN упал: {type(e).__name__}: {e}")
+        print(f"  [{name}] RUN failed: {type(e).__name__}: {e}")
         fs = [_error_finding(name, "run", e, traceback.format_exc())]
     finally:
         try:
             vec.teardown(ctx)
         except Exception as e:
-            print(f"  [{name}] teardown упал: {type(e).__name__}: {e}")
+            print(f"  [{name}] teardown failed: {type(e).__name__}: {e}")
 
     if summary is not None:
         try:
             subrun.write_json("summary.json", summary)
         except Exception as e:
-            print(f"  [{name}] summary не записался: {type(e).__name__}: {e}")
+            print(f"  [{name}] summary not written: {type(e).__name__}: {e}")
         try:
             fs = list(vec.findings(summary, ctx))
         except Exception as e:
-            print(f"  [{name}] findings упал: {type(e).__name__}: {e}")
+            print(f"  [{name}] findings failed: {type(e).__name__}: {e}")
             fs = [_error_finding(name, "findings", e, traceback.format_exc())]
 
     try:
         jp, _mp = report_std.write(subrun, vec, summary or {"vector": name, "error": True}, fs, cfg)
-        print(f"    -> {name}/{os.path.basename(jp)}  (находок: {len(fs)})")
+        print(f"    -> {name}/{os.path.basename(jp)}  (findings: {len(fs)})")
     except Exception as e:
-        print(f"  [{name}] отчёт не записался: {type(e).__name__}: {e}")
+        print(f"  [{name}] report not written: {type(e).__name__}: {e}")
     try:                                   # F-shape находки модуля -> для кумулятивного свода прогона
         subrun.write_json("findings.json", {"vector": name, "findings": fs})
     except Exception as e:
-        print(f"  [{name}] findings.json не записался: {type(e).__name__}: {e}")
+        print(f"  [{name}] findings.json not written: {type(e).__name__}: {e}")
     try:
         _publish_top(name, subrun)
     except Exception as e:
-        print(f"  [{name}] публикация PoC не удалась: {type(e).__name__}: {e}")
+        print(f"  [{name}] PoC publish failed: {type(e).__name__}: {e}")
     return _finish("error" if any(f.get("status") == "error" for f in fs) else "done", fs)
 
 
@@ -705,13 +723,13 @@ def _aggregate_run(parent, cfg):
             pass
     try:
         doc = F.write(parent, all_findings, _meta(cfg))
-        print(f"свод прогона: {doc['count']} находок -> {parent.path('findings.json')}")
+        print(f"run summary: {doc['count']} findings -> {parent.path('findings.json')}")
     except Exception as e:
-        print(f"свод findings не записался: {type(e).__name__}: {e}")
+        print(f"findings summary not written: {type(e).__name__}: {e}")
     try:
         COV.write(parent)
     except Exception as e:
-        print(f"coverage не записался: {type(e).__name__}: {e}")
+        print(f"coverage not written: {type(e).__name__}: {e}")
 
 
 def cmd_vectors(cfg, selected, overrides, run_sel=None, new=False, report=False):
@@ -722,10 +740,10 @@ def cmd_vectors(cfg, selected, overrides, run_sel=None, new=False, report=False)
     try:
         reg = discover()
     except Exception as e:
-        print(f"discover() упал: {type(e).__name__}: {e}")
+        print(f"discover() failed: {type(e).__name__}: {e}")
         return 1
     if not reg:
-        print("векторы не найдены (attack_vectors/ пуст)")
+        print("no vectors found (attack_vectors/ is empty)")
         return 1
     if "*-nowrapper" in selected:                    # a-all-nowrapper -> активные БЕЗ обёрток
         names = [n for n in sorted(reg) if getattr(reg[n], "active", True)
@@ -736,11 +754,12 @@ def cmd_vectors(cfg, selected, overrides, run_sel=None, new=False, report=False)
         names = [n for n in selected if n in reg]
         unknown = [n for n in selected if n not in reg]
         if unknown:
-            print(f"неизвестные векторы: {', '.join(unknown)} ; доступны: {', '.join(sorted(reg))}")
+            print(f"unknown vectors: {', '.join(unknown)} ; available: {', '.join(sorted(reg))}")
             if not names:
                 return 1
     stamp = runlog.resolve_run_id(new=new, name=run_sel)   # одна папка: CURRENT/--run/--new
     parent = Run(stamp, cfg)                                # runs/<stamp>/ — общий прогон (переиспользуется)
+    tee_streams(os.path.join(parent.dir, "console.log"))    # зеркалим весь вывод в файл прогона
     # тех-манифест: метка «папка рабочая» + запуск/начало (обновим конец в финале). Merge -> при
     # дозапуске модулей в ту же папку command/started накапливаются, finished двигается.
     try:
@@ -749,22 +768,23 @@ def cmd_vectors(cfg, selected, overrides, run_sel=None, new=False, report=False)
                               started=time.strftime("%Y-%m-%d %H:%M:%S"),
                               target=cfg.target["target"]["name"])
     except Exception as e:
-        print(f"манифест (старт) не записан: {type(e).__name__}: {e}")
-    print("== VECTORS ==", "прогон:", parent.run_id, "|", ", ".join(names),
-          "(общая папка — переиспользуется, в т.ч. параллельными агентами)")
+        print(f"manifest (start) not written: {type(e).__name__}: {e}")
+    print("== VECTORS ==", "run:", parent.run_id, "|", ", ".join(names),
+          "(shared folder — reused, including by parallel agents)")
     for name in names:
+        section(name)                                        # разделитель между модулями в логе
         _run_one_vector(cfg, stamp, name, reg[name], overrides)   # -> runs/<stamp>/<name>/
     _aggregate_run(parent, cfg)                            # кумулятивный свод по ВСЕЙ папке
     try:
         runlog.write_manifest(parent.dir, status="done", modules=names,
                               finished=time.strftime("%Y-%m-%d %H:%M:%S"))
     except Exception as e:
-        print(f"манифест (финиш) не записан: {type(e).__name__}: {e}")
+        print(f"manifest (finish) not written: {type(e).__name__}: {e}")
     if report:                                            # --report -> REPORT_<штамп> сразу по этой папке
-        print("== REPORT ==", "сборка отчёта по прогону:", parent.run_id)
+        print("== REPORT ==", "building report for run:", parent.run_id)
         cmd_report(cfg, run_sel=parent.run_id)
     else:
-        print(f"прогон: {parent.dir}/ (модули в подпапках)  ·  отчёт: run.py report")
+        print(f"run: {parent.dir}/ (modules in subfolders)  ·  report: run.py report")
     return 0
 
 
@@ -791,16 +811,16 @@ def main(argv=None):
                                     "new", "where"])
     ap.add_argument("--attempts", type=int, default=5)
     ap.add_argument("--no-llm", action="store_true")
-    ap.add_argument("--marker", default=None, help="mem: искать эту метку по ярусам памяти")
+    ap.add_argument("--marker", default=None, help="mem: search for this marker across memory tiers")
     ap.add_argument("--multiturn", action="store_true",
-                    help="bac: многоходовой диалог (опционально; дефолт single-shot)")
-    ap.add_argument("--turns", type=int, default=5, help="multiturn: макс. ходов в диалоге")
+                    help="bac: multi-turn dialog (optional; default single-shot)")
+    ap.add_argument("--turns", type=int, default=5, help="multiturn: max turns in dialog")
     ap.add_argument("--run", default=None,
-                    help="имя/id папки прогона: report/new/poison-proof (по умолчанию — CURRENT/последний)")
+                    help="name/id of run folder: report/new/poison-proof (default — CURRENT/latest)")
     ap.add_argument("--model", default=None,
-                    help="report: модель-сборщик (оверрайд слота reporter), напр. anthropic/claude-opus-4.6")
+                    help="report: synthesizer model (override for the reporter slot), e.g. anthropic/claude-opus-4.6")
     ap.add_argument("--dir", default=None,
-                    help="report: собрать из ЛЮБОЙ папки (аргумент) с report__*.json — независимо от output/runs/")
+                    help="report: build from ANY folder (argument) with report__*.json — independent of output/runs/")
     args = ap.parse_args(argv)
 
     if args.cmd == "smoke":

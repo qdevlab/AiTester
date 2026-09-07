@@ -175,7 +175,7 @@ def build(run, cfg, model=None, scope_dir=None):
     synth_block = "\n".join(f"_{ln}_  " for ln in meta_lines) + "\n\n"
     header = f"# Отчёт по уязвимостям — {tgt}\n\n{run_meta}{synth_block}"
     # Разделы строятся КОДОМ (не на откуп LLM): тулы + запуск/тайминг модулей + пер-модульная сводка.
-    sections = [header + _modules_list_section(reports), body, _repro_section(reports), _tools_section(reports),
+    sections = [header + _modules_list_section(reports), body, _repro_section(reports, cfg), _tools_section(reports),
                 _modules_meta_section(reports, scope_dir), _module_table(reports)]
     return "\n\n".join(s for s in sections if s and s.strip()), src, used_llm
 
@@ -294,9 +294,14 @@ def _attack_story(rec):
         obs.append("маркер воспроизведён в новом диалоге другого клиента (цели)")
     if rec.get("marker_in_target_reply"):
         obs.append("маркер воспроизведён в ответе цели")
+    mem_keys = ("persisted_global", "persisted_user", "persisted", "in_working_memory",
+                "in_retrieved_context", "in_target_context", "marker_in_reply",
+                "marker_in_target_reply", "rule_landed_global", "rule_landed_user", "landing_scope")
+    is_memory = any(k in rec for k in mem_keys)   # атака трогала память -> к ней применим шаг консолидации
     return {"attacker": rec.get("attacker"), "victim": rec.get("victim"), "marker": rec.get("marker"),
             "channel": rec.get("channel") or rec.get("framing"), "scope": rec.get("scope"),
-            "sent": sent, "replies": replies, "observed": obs, "trace_path": rec.get("trace_path")}
+            "sent": sent, "replies": replies, "observed": obs, "trace_path": rec.get("trace_path"),
+            "is_memory": is_memory}
 
 
 _FIX_BY_CLASS = {
@@ -306,7 +311,7 @@ _FIX_BY_CLASS = {
 }
 
 
-def _repro_section(reports):
+def _repro_section(reports, cfg=None):
     """ДЕТЕРМИНИРОВАННО: как РЕАЛЬНО атаковали — пошаговый транскрипт из записанных модулем данных
     (что подавалось на вход агенту, ответы агента, наблюдаемый эффект, что чинить)."""
     rows = []
@@ -322,6 +327,11 @@ def _repro_section(reports):
             rows.append((v, d, story))
     if not rows:
         return ""
+    fin_word = None
+    try:
+        fin_word = cfg.finalize_word() if cfg is not None else None   # шаг консолидации — из конфига цели
+    except Exception:
+        fin_word = None
     lines = ["## Как проводилась атака (реальные вводы в модель)", "",
              "_Пошагово из логов сеанса: что подавалось агенту на вход, как он ответил, что "
              "изменилось в памяти. По этому разделу видно, что чинить._", ""]
@@ -342,7 +352,11 @@ def _repro_section(reports):
                 lines.append("```")
                 lines.append(t[:1200])
                 lines.append("```")
-            lines.append("→ затем **finalize** (консолидация памяти).")
+            if s.get("is_memory"):                       # консолидация — только для атак на память, слово из конфига
+                step = "затем консолидация памяти"
+                if fin_word:
+                    step += f" (шаг стенда: `{fin_word}`)"
+                lines.append(step + ".")
         else:
             lines.append("**Ввод:** прямой вызов сервиса данных токеном атакующего (без сообщения в чат).")
         if s["replies"]:

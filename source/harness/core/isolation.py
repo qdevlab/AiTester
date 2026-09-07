@@ -158,7 +158,7 @@ def stand_lease(cfg=None, timeout=None):
         except BlockingIOError:
             if time.time() > deadline:
                 f.close()
-                raise TimeoutError(f"стенд занят: не удалось взять lease {path} за {timeout}s")
+                raise TimeoutError(f"stand is busy: failed to acquire lease {path} within {timeout}s")
             time.sleep(1)
     try:
         f.write(f"{os.getpid()} {time.time()}\n")

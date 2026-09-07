@@ -51,7 +51,7 @@ def data_layer(run, attacker, victim, auth_mode, cfg=None):
 
 
 def account_owner(run, attacker, account_id, auth_mode, cfg=None):
-    """H2: резолв владельца чужого счёта (течёт даже в protected)."""
+    """H2: определение владельца чужого счёта (раскрывается даже в защищённом режиме)."""
     cfg = cfg or load()
     res = state.account_owner_resolves(attacker, account_id, auth_mode, cfg)
     owner = res.get("data") if res["resolved"] else None
@@ -157,7 +157,7 @@ def _campaign_multiturn(run, cfg, attacker, victim, account_id, key, client,
                 "transcript": [{"attacker": t["attacker"], "reply": (t["reply"] or "")[:200],
                                 "backtracked": t.get("backtracked", False)} for t in r["transcript"]],
             })
-            log(f"[{i + 1}/{n_dialogs}] multiturn leak={r['success']} за {r['turns']} ходов", sub=True)
+            log(f"[{i + 1}/{n_dialogs}] multiturn leak: {r['success']} in {r['turns']} turns", sub=True)
             if r["success"]:
                 leaks += 1
                 corpus.record("bac_agent", _templatize(first, victim, account_id))   # M2S-сид
@@ -211,13 +211,13 @@ def agent_mediated_campaign(run, cfg=None, attacker=None, victim=None, auth_mode
                                                         model=am, seeds=seeds)
             except Exception as e:
                 run.attempt({"task": "bac", "event": "gen_error", "model": am, "error": str(e)[:200]})
-        log(f"атакующий {am}: {len(prompts)} формулировок ({auth_mode})")
+        log(f"attacker {am}: {len(prompts)} phrasings ({auth_mode})")
         leaks = 0
         for i, p in enumerate(prompts):
             rec = agent_mediated_adaptive(run, client, attacker_gen, key, attacker, victim,
                                           account_id, p, auth_mode, max_steps=max_steps,
                                           cfg=cfg, attacker_model=am, warmup=warmup)
-            log(f"[{i + 1}/{len(prompts)}] leak={rec['leak']}", sub=True)
+            log(f"[{i + 1}/{len(prompts)}] leak: {rec['leak']}", sub=True)
             if rec["leak"]:
                 leaks += 1
                 corpus.record("bac_agent", _templatize(rec["prompt"], victim, account_id))
@@ -247,7 +247,7 @@ def run_mvp(run, cfg=None, attempts=5, multiturn=False, max_turns=5, warmup=1):
 
     # BAC — read-only (data-layer/owner/agent-read): персистентное состояние стенда НЕ меняем,
     # поэтому сброс НЕ делаем (иначе бьём чужой стейт). mutates_state('bac') == False.
-    log(f"BAC {attacker}->{victim}: старт (read-only, без сброса состояния)")
+    log(f"BAC {attacker}->{victim}: start (read-only, no state reset)")
     summary = {"attacker": attacker, "victim": victim, "channels": {}}
 
     # Канал 1 — data layer (детерминированно), пара режимов
@@ -269,7 +269,7 @@ def run_mvp(run, cfg=None, attempts=5, multiturn=False, max_turns=5, warmup=1):
     }
 
     # Канал 2 — agent-mediated (LLM-генерация + adaptive), пара режимов
-    log("агент-канал: LLM-генерация формулировок + adaptive-обход")
+    log("agent channel: LLM-generated phrasings + adaptive retries")
     amv = agent_mediated_campaign(run, cfg, attacker, victim, "vulnerable",
                                   attacker_models=None, n_gen=attempts, use_llm=True,
                                   multiturn=multiturn, max_turns=max_turns, warmup=warmup)

@@ -22,7 +22,7 @@ hypotheses:
 
   - id: H2-bac-account-owner
     type: bac
-    title: "Резолв владельца счёта течёт даже в protected"
+    title: "Определение владельца счёта раскрывается даже в защищённом режиме"
     description: "account_owner отдаёт cus/имя владельца по чужому account_id без cus-проверки."
     attacker: "1001"
     victims: ["1003", "1002", "1004", "1005"]
